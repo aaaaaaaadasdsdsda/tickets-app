@@ -2,6 +2,7 @@
 //  exports.js — Excel, PDF, importación
 // ==========================================================
 
+// ---------- EXPORTAR PDF ----------
 function buildPdf(filtered){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'mm', format:'a4' });
@@ -46,7 +47,7 @@ function buildPdf(filtered){
   doc.setFont('helvetica', 'normal');
   doc.text(`IVA incluido: $ ${ivaGeneral.toFixed(2)}`, pageW - 18, baseY + 12, { align:'right' });
 
-  // --- Resumen por categoría ---
+  // Resumen por categoría
   const porCat = {};
   for(const r of filtered){
     const cat = r.tipo || 'Sin categoria';
@@ -82,7 +83,7 @@ function buildPdf(filtered){
     columnStyles: { 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'}, 4:{halign:'right'} }
   });
 
-  // --- Resumen por mes ---
+  // Resumen por mes
   const porMes = {};
   for(const r of filtered){
     const mes = (r.fecha||'').slice(0,7) || 'Sin fecha';
@@ -116,7 +117,7 @@ function buildPdf(filtered){
     columnStyles: { 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'} }
   });
 
-  // --- Resumen por condición ---
+  // Resumen por condición
   const porCond = { contado:{ cant:0, total:0, iva:0 }, credito:{ cant:0, total:0, iva:0 }, sin:{ cant:0, total:0, iva:0 } };
   for(const r of filtered){
     const k = (r.condicion === 'contado' || r.condicion === 'credito') ? r.condicion : 'sin';
@@ -151,7 +152,7 @@ function buildPdf(filtered){
     columnStyles: { 1:{halign:'right'}, 2:{halign:'right'}, 3:{halign:'right'} }
   });
 
-  // --- Detalle de movimientos ---
+  // Detalle de movimientos
   y = doc.lastAutoTable.finalY + 10;
   if(y > doc.internal.pageSize.getHeight() - 60){ doc.addPage(); y = 20; }
 
@@ -161,18 +162,18 @@ function buildPdf(filtered){
   doc.text('Detalle de movimientos', 14, y);
   y += 3;
 
-    const rowsDetalle = filtered
+  const rowsDetalle = filtered
     .slice()
     .sort((a,b)=> (a.fecha||'').localeCompare(b.fecha||''))
     .map(r => [
       r.fecha || '-',
-      (r.local || '-').substring(0, 18),
+      (r.local || '-').substring(0, 20),
       r.rut_emisor || '-',
       r.tipo || '-',
       (r.detalle || '-').substring(0, 22),
       r.condicion ? (r.condicion === 'contado' ? 'Contado' : 'Crédito') : '-',
       `$ ${Number(r.total||0).toFixed(2)}`,
-      (r.notas || '').substring(0, 30)
+      (r.notas || '').substring(0, 24)
     ]);
 
   doc.autoTable({
@@ -202,6 +203,7 @@ function buildPdf(filtered){
   return doc;
 }
 
+// ---------- EXPORTAR EXCEL ----------
 async function buildWorkbook(filtered){
   const wb = new ExcelJS.Workbook();
   wb.creator = currentUser?.nombre || 'Tickets App';
@@ -211,8 +213,9 @@ async function buildWorkbook(filtered){
   const ivaGeneral   = filtered.reduce((s,r)=> s + Number(r.iva||0),   0);
   const cantGeneral  = filtered.length;
 
-  // Hoja 1: Tickets
-   wsTickets.columns = [
+  // ---- Hoja 1: Tickets ----
+  const wsTickets = wb.addWorksheet('Tickets');
+  wsTickets.columns = [
     { header:'Fecha',       key:'fecha',         width:12 },
     { header:'Local',       key:'local',         width:28 },
     { header:'RUT emisor',  key:'rut_emisor',    width:16 },
@@ -252,7 +255,7 @@ async function buildWorkbook(filtered){
     }
   }
 
-  // Hoja 2: Por categoría
+  // ---- Hoja 2: Por categoría ----
   const wsCat = wb.addWorksheet('Por categoria');
   wsCat.columns = [
     { header:'Categoria',   key:'cat',   width:24 },
@@ -294,7 +297,7 @@ async function buildWorkbook(filtered){
     }
   }
 
-  // Hoja 3: Por mes
+  // ---- Hoja 3: Por mes ----
   const wsMes = wb.addWorksheet('Por mes');
   wsMes.columns = [
     { header:'Mes',      key:'mes',   width:14 },
@@ -332,7 +335,7 @@ async function buildWorkbook(filtered){
     }
   }
 
-  // Hoja 4: Por condición
+  // ---- Hoja 4: Por condición ----
   const wsCond = wb.addWorksheet('Por condición');
   wsCond.columns = [
     { header:'Condición', key:'cond',  width:18 },
@@ -403,6 +406,7 @@ function handleExportPdf(){
   }
 }
 
+// ---------- IMPORTAR EXCEL ----------
 function recordKey(r){
   return [
     (r.fecha||'').trim(),
@@ -448,13 +452,14 @@ async function handleImportExcel(){
 
       const rutEmisor = String(row['RUT emisor'] ?? row['Rut emisor'] ?? '').trim() || null;
       const rutComprador = String(row['RUT comp.'] ?? row['RUT comprador'] ?? '').trim() || null;
+      const notas = String(row['Notas'] ?? '').trim() || null;
 
       if(!local || !fecha || !detalle || isNaN(total)){ skipped++; continue; }
 
       const candidate = {
         local, fecha, tipo, detalle, total,
         iva: (iva!=null && !isNaN(iva)) ? iva : null,
-        condicion, rut_emisor: rutEmisor, rut_comprador: rutComprador
+        condicion, rut_emisor: rutEmisor, rut_comprador: rutComprador, notas
       };
       const key = recordKey(candidate);
       if(existingKeys.has(key)){ duplicates++; continue; }
