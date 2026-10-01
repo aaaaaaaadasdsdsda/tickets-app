@@ -1,3 +1,3 @@
 # Adjuntos subidos
 backend/static/uploads/*
-!backend/static/uploads/.gitkeep
+!backend/static/uploads/.gitkeepgit status -u
