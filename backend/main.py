@@ -185,7 +185,34 @@ def delete_record(record_id: int, db: Session = Depends(get_db), user: User = De
     db.commit()
     return {"ok": True}
 
-# ---------- ADJUNTOS ----------
+# ---------- ADJUNTOS (Cloudflare R2 con fallback a disco) ----------
+import boto3
+from botocore.client import Config
+from fastapi.responses import RedirectResponse, FileResponse
+
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
+R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY")
+R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY")
+R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME", "flor")
+
+s3_client = None
+if R2_ACCOUNT_ID and R2_ACCESS_KEY and R2_SECRET_KEY:
+    try:
+        s3_client = boto3.client(
+            service_name="s3",
+            endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            aws_access_key_id=R2_ACCESS_KEY,
+            aws_secret_access_key=R2_SECRET_KEY,
+            region_name="auto",
+            config=Config(signature_version="s3v4"),
+        )
+        print("R2 configurado correctamente.")
+    except Exception as e:
+        print(f"ERROR configurando R2: {e}")
+        s3_client = None
+else:
+    print("R2 no configurado. Los adjuntos se guardarán en disco local.")
+
 EXT_PERMITIDAS = {'.png', '.jpg', '.jpeg', '.pdf', '.webp', '.gif'}
 
 @app.post("/records/{record_id}/attachment")
@@ -198,18 +225,36 @@ async def upload_attachment(record_id: int, file: UploadFile = File(...), db: Se
     if ext not in EXT_PERMITIDAS:
         raise HTTPException(400, f"Formato no permitido. Usá: {', '.join(sorted(EXT_PERMITIDAS))}")
 
-    # Borrar el anterior si existe
-    if rec.attachment:
-        old = os.path.join(UPLOAD_DIR, rec.attachment)
-        if os.path.exists(old):
-            try: os.remove(old)
-            except: pass
-
-    # Guardar el nuevo
     safe_name = f"rec_{record_id}_{int(time.time())}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, safe_name)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+
+    if s3_client:
+        # Borrar el anterior si existe en R2
+        if rec.attachment:
+            try:
+                s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=rec.attachment)
+            except Exception as e:
+                print(f"No se pudo borrar adjunto viejo de R2: {e}")
+
+        # Subir el nuevo a R2
+        try:
+            s3_client.upload_fileobj(
+                file.file,
+                R2_BUCKET_NAME,
+                safe_name,
+                ExtraArgs={'ContentType': file.content_type or 'application/octet-stream'}
+            )
+        except Exception as e:
+            raise HTTPException(500, f"Error al subir a R2: {str(e)}")
+    else:
+        # Fallback a disco local
+        if rec.attachment:
+            old = os.path.join(UPLOAD_DIR, rec.attachment)
+            if os.path.exists(old):
+                try: os.remove(old)
+                except: pass
+        file_path = os.path.join(UPLOAD_DIR, safe_name)
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
 
     rec.attachment = safe_name
     rec.attachment_name = file.filename
@@ -222,14 +267,39 @@ def delete_attachment(record_id: int, db: Session = Depends(get_db), user: User 
     if not rec:
         raise HTTPException(404, "Registro no encontrado")
     if rec.attachment:
-        p = os.path.join(UPLOAD_DIR, rec.attachment)
-        if os.path.exists(p):
-            try: os.remove(p)
-            except: pass
+        if s3_client:
+            try:
+                s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=rec.attachment)
+            except Exception as e:
+                print(f"No se pudo borrar de R2: {e}")
+        else:
+            p = os.path.join(UPLOAD_DIR, rec.attachment)
+            if os.path.exists(p):
+                try: os.remove(p)
+                except: pass
         rec.attachment = None
         rec.attachment_name = None
         db.commit()
     return {"ok": True}
+
+@app.get("/uploads/{filename}")
+def get_upload(filename: str):
+    """Redirige a R2 si está configurado, o sirve el archivo local."""
+    if s3_client:
+        try:
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': R2_BUCKET_NAME, 'Key': filename},
+                ExpiresIn=3600
+            )
+            return RedirectResponse(url=url)
+        except Exception as e:
+            raise HTTPException(500, f"Error generando URL: {str(e)}")
+    else:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(404, "Archivo no encontrado")
+        return FileResponse(file_path)
 
 # ---------- PRESUPUESTOS ----------
 @app.get("/budgets", response_model=List[BudgetOut])
