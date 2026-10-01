@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#722236" id="metaThemeColor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tickets">
+<title>Registro de Tickets</title>
+
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <form class="login-box" id="loginForm">
+    <h1>Registro de Tickets</h1>
+    <p class="login-note">Ingresá con tu usuario</p>
+    <div class="field"><label>Usuario</label><input id="loginUser" autocomplete="username"></div>
+    <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+    <div class="form-errors" id="loginError" style="display:none;"></div>
+    <button class="primary" type="submit">Ingresar</button>
+  </form>
+</div>
+
+<div id="app" style="display:none;">
+<header>
+  <h1>Registro de Tickets</h1>
+  <p>Organizá tus gastos de forma simple y rápida</p>
+  <div class="session-bar">
+    <span id="sessionInfo"></span>
+    <button id="btnPerfil" class="link-btn" title="Mi perfil">👤 Perfil</button>
+    <button id="btnUsuarios" class="link-btn" title="Gestión de usuarios" style="display:none;">👥 Usuarios</button>
+    <button id="btnHistorial" class="link-btn" title="Historial de cambios" style="display:none;">📋 Historial</button>
+    <button id="btnThemeToggle" class="link-btn" title="Cambiar tema">🌙 Modo oscuro</button>
+    <button id="btnLogout" class="link-btn">Cerrar sesión</button>
+  </div>
+</header>
+<main>
+  <div class="tabs">
+    <button class="tab active" id="tabDashboard">Inicio</button>
+    <button class="tab" id="tabPhoto">Subir foto</button>
+    <button class="tab" id="tabManual">Carga manual</button>
+    <button class="tab" id="tabEdit">Modificaciones</button>
+    <button class="tab" id="tabResumen">Resumen mensual</button>
+  </div>
+
+  <div class="panel" id="panelDashboard">
+    <div class="dashboard-greeting">
+      <h2 id="dashGreeting">Hola 👋</h2>
+      <p id="dashSubtitle">Resumen del mes actual</p>
+    </div>
+
+    <div class="dash-cards">
+      <div class="dash-card"><span>Total del mes</span><strong id="dashTotalMes">$ 0.00</strong></div>
+      <div class="dash-card"><span>Registros</span><strong id="dashCantMes">0</strong></div>
+      <div class="dash-card"><span>Promedio</span><strong id="dashPromedio">$ 0.00</strong></div>
+    </div>
+
+    <div class="export-row" style="margin-top:22px;">
+      <h3 class="section-title" style="margin:0;">Presupuestos del mes</h3>
+      <button id="btnGestionPresupuestos" class="secondary" style="display:none;">Gestionar</button>
+    </div>
+    <div class="budgets" id="budgetsList"></div>
+    <div class="empty" id="budgetsEmpty">No hay presupuestos definidos.</div>
+
+    <h3 class="section-title">Top categorías del mes</h3>
+    <div class="dash-bars" id="dashTopCats"></div>
+
+    <h3 class="section-title">Últimos 5 movimientos</h3>
+    <div class="wrap-table"><table>
+      <thead><tr><th>Fecha</th><th>Local</th><th>Tipo</th><th class="num">Total</th></tr></thead>
+      <tbody id="dashTbody"></tbody>
+    </table></div>
+    <div class="empty" id="dashEmpty">Sin movimientos aún.</div>
+  </div>
+
+  <div class="panel" id="panelPhoto" style="display:none;">
+    <div class="dropzone" id="dropzone">📄<br><strong>Subí un ticket o factura</strong><br><span>PDF, imagen o foto desde tu celular</span></div>
+    <input type="file" id="fileInput" accept="image/*,application/pdf">
+    <div class="ocr-status" id="ocrStatus"></div>
+
+    <div id="pendingPreview" style="display:none;margin-top:14px;">
+      <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 8px;">Archivo cargado (se va a adjuntar al registro):</p>
+      <img id="pendingImg" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--rule);display:none;">
+      <p id="pendingName" style="font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;"></p>
+    </div>
+  </div>
+
+  <div class="panel" id="formPanel" style="display:none;">
+    <div class="form-errors" id="formErrors" style="display:none;"></div>
+    <div class="field" id="wLocal"><label>Local / Comercio / Motivo *</label><input id="fLocal" placeholder="Ej: Farmacia X — compra de insumos"></div>
+    <div class="row2">
+      <div class="field" id="wFecha"><label>Fecha *</label><input id="fFecha" type="date"></div>
+      <div class="field"><label>Tipo de gasto *</label>
+        <select id="fTipo">
+          <option value="Salarios">Salarios</option>
+          <option value="Gastos mantenimiento">Gastos mantenimiento</option>
+          <option value="Compras/reparaciones">Compras/reparaciones</option>
+          <option value="Servicios">Servicios (UTE, OSE, ANTEL, etc.)</option>
+          <option value="Impuestos y tasas">Impuestos y tasas</option>
+          <option value="Seguros">Seguros</option>
+          <option value="Gastos bancarios">Gastos bancarios</option>
+          <option value="Honorarios profesionales">Honorarios profesionales</option>
+          <option value="Gastos personales">Gastos personales</option>
+          <option value="Notas de crédito/devoluciones">Notas de crédito / devoluciones</option>
+          <option value="Otros">Otros</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" id="wDetalle"><label>Detalle *</label><input id="fDetalle" placeholder="Ej: Salario, Juan portero"></div>
+    <div class="row2">
+      <div class="field" id="wTotal"><label>Total ($) *</label><input id="fTotal" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>IVA ($) — opcional</label><input id="fIva" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="field"><label>Condición</label>
+      <select id="fCondicion">
+        <option value="">Sin especificar</option>
+        <option value="contado">Contado</option>
+        <option value="credito">Crédito</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>RUT emisor</label><input id="fRutEmisor" placeholder="Ej: 213585030019"></div>
+      <div class="field"><label>RUT comprador</label><input id="fRutComprador" placeholder="Ej: 151025410017"></div>
+    </div>
+
+    <div class="field">
+      <label>Notas (opcional)</label>
+      <textarea id="fNotas" rows="3" placeholder="Observaciones, aclaraciones, etc."></textarea>
+    </div>
+
+    <div class="field">
+      <label>¿Adjuntar archivo? *</label>
+      <div class="radio-group">
+        <label class="radio-option"><input type="radio" name="fAdjuntar" value="si"> Sí</label>
+        <label class="radio-option"><input type="radio" name="fAdjuntar" value="no"> No</label>
+      </div>
+    </div>
+    <div id="fAdjuntoBox" style="display:none;">
+      <div id="fAdjuntoPreview" style="margin-bottom:10px;"></div>
+      <input type="file" id="fAdjuntoInput" accept="image/*,application/pdf" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" class="secondary" id="btnFAdjuntar" style="flex:1;">📎 Elegir archivo</button>
+        <button type="button" class="danger" id="btnFQuitarAdjunto" style="flex:1;display:none;">Quitar archivo</button>
+      </div>
+    </div>
+
+    <button class="primary" id="btnSave">Guardar registro</button>
+  </div>
+
+  <div class="panel" id="editPanel" style="display:none;">
+    <p class="edit-hint" id="editHint">Seleccioná un registro de la tabla de abajo para modificarlo.</p>
+    <div class="form-errors" id="editErrors" style="display:none;"></div>
+    <div id="editFields" style="display:none;">
+      <div class="field" id="ewLocal"><label>Local / Comercio / Motivo *</label><input id="eLocal"></div>
+      <div class="row2">
+        <div class="field" id="ewFecha"><label>Fecha *</label><input id="eFecha" type="date"></div>
+        <div class="field"><label>Tipo de gasto *</label>
+          <select id="eTipo">
+            <option value="Salarios">Salarios</option>
+            <option value="Gastos mantenimiento">Gastos mantenimiento</option>
+            <option value="Compras/reparaciones">Compras/reparaciones</option>
+            <option value="Servicios">Servicios (UTE, OSE, ANTEL, etc.)</option>
+            <option value="Impuestos y tasas">Impuestos y tasas</option>
+            <option value="Seguros">Seguros</option>
+            <option value="Gastos bancarios">Gastos bancarios</option>
+            <option value="Honorarios profesionales">Honorarios profesionales</option>
+            <option value="Gastos personales">Gastos personales</option>
+            <option value="Notas de crédito/devoluciones">Notas de crédito / devoluciones</option>
+            <option value="Otros">Otros</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="ewDetalle"><label>Detalle *</label><input id="eDetalle"></div>
+      <div class="row2">
+        <div class="field" id="ewTotal"><label>Total ($) *</label><input id="eTotal" type="number" step="0.01"></div>
+        <div class="field"><label>IVA ($) — opcional</label><input id="eIva" type="number" step="0.01"></div>
+      </div>
+      <div class="field"><label>Condición</label>
+        <select id="eCondicion">
+          <option value="">Sin especificar</option>
+          <option value="contado">Contado</option>
+          <option value="credito">Crédito</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field"><label>RUT emisor</label><input id="eRutEmisor"></div>
+        <div class="field"><label>RUT comprador</label><input id="eRutComprador"></div>
+      </div>
+
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <textarea id="eNotas" rows="3" placeholder="Observaciones, aclaraciones, etc."></textarea>
+      </div>
+
+      <div class="field">
+        <label>Adjunto</label>
+        <div id="editAttachmentPreview" style="margin-bottom:8px;"></div>
+        <input type="file" id="editAttachmentInput" accept="image/*,application/pdf" style="display:none;">
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="secondary" id="btnAttachFile" style="flex:1;">📎 Adjuntar archivo</button>
+          <button type="button" class="danger" id="btnDetachFile" style="flex:1;display:none;">Quitar adjunto</button>
+        </div>
+        <p style="font-size:.74rem;color:var(--ink-soft);margin:8px 0 0;">Formatos permitidos: PNG, JPG, PDF.</p>
+      </div>
+
+      <div class="edit-actions">
+        <button class="primary" id="btnSaveEdit">Guardar cambios</button>
+        <button class="secondary" id="btnCancelEdit">Cancelar</button>
+        <button class="danger" id="btnDeleteEdit">Eliminar registro</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panelResumen" style="display:none;">
+    <div class="export-row">
+      <h2>Resumen mensual</h2>
+      <div class="export-actions">
+        <button id="btnExportPdf">Exportar PDF</button>
+        <button id="btnExportResumen">Exportar Excel</button>
+      </div>
+    </div>
+    <p class="edit-hint">Los gráficos y totales reflejan los filtros aplicados en la sección de "Registros guardados".</p>
+
+    <div class="chart-container"><canvas id="chartMeses"></canvas></div>
+    <div class="chart-container"><canvas id="chartCategorias"></canvas></div>
+
+    <h3 class="section-title">Detalle por mes</h3>
+    <div class="wrap-table"><table>
+      <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
+      <tbody id="tbodyResumen"></tbody>
+    </table></div>
+    <div class="empty" id="emptyResumen">Sin datos para mostrar.</div>
+  </div>
+
+  <div class="panel" id="panelRegistros" style="display:none;">
+    <div class="export-row">
+      <h2>Registros guardados</h2>
+      <div class="export-actions">
+        <input type="file" id="importInput" accept=".xlsx,.xls" style="display:none;">
+        <button id="btnImport" class="secondary">Importar Excel</button>
+        <button id="btnExport">Exportar a Excel</button>
+      </div>
+    </div>
+    <div class="field" id="exportNameField"><label>Nombre del archivo a exportar</label><input id="fFileName" value="tickets"></div>
+    <div class="import-status" id="importStatus"></div>
+
+    <h3 class="section-title">Búsqueda por filtros</h3>
+    <div class="filters">
+      <div class="field"><label>Mes</label>
+        <select id="filtroMes"><option value="">Todos los meses</option></select>
+      </div>
+      <div class="field"><label>Desde</label><input type="date" id="filtroDesde"></div>
+      <div class="field"><label>Hasta</label><input type="date" id="filtroHasta"></div>
+      <div class="field"><label>Tipo</label>
+        <select id="filtroTipo">
+          <option value="">Todos</option>
+          <option value="Salarios">Salarios</option>
+          <option value="Gastos mantenimiento">Gastos mantenimiento</option>
+          <option value="Compras/reparaciones">Compras/reparaciones</option>
+          <option value="Servicios">Servicios (UTE, OSE, ANTEL, etc.)</option>
+          <option value="Impuestos y tasas">Impuestos y tasas</option>
+          <option value="Seguros">Seguros</option>
+          <option value="Gastos bancarios">Gastos bancarios</option>
+          <option value="Honorarios profesionales">Honorarios profesionales</option>
+          <option value="Gastos personales">Gastos personales</option>
+          <option value="Notas de crédito/devoluciones">Notas de crédito / devoluciones</option>
+          <option value="Otros">Otros</option>
+        </select>
+      </div>
+      <div class="field"><label>Buscar</label><input id="filtroTexto" placeholder="Local o detalle..."></div>
+      <button type="button" id="btnLimpiarFiltros">Limpiar</button>
+    </div>
+
+    <h3 class="section-title">Total</h3>
+    <div class="totals" id="totalsBar"></div>
+
+    <div class="wrap-table"><table>
+      <thead><tr><th>Fecha</th><th>Local</th><th>Tipo</th><th>Detalle</th><th class="num">Total</th><th>Cond.</th><th class="num">IVA</th><th></th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+    <div class="empty" id="emptyMsg">Todavía no hay registros.</div>
+    <div class="table-note" id="tableNote"></div>
+  </div>
+
+  <p class="note">Los datos se guardan en el servidor. Cada dispositivo con acceso a la URL ve la misma información.</p>
+</main>
+</div>
+
+<!-- MODAL: PERFIL -->
+<div class="modal" id="modalPerfil" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header"><h2>Mi perfil</h2><button class="modal-close" id="btnClosePerfil">✕</button></div>
+    <div class="modal-body">
+      <div class="profile-info">
+        <p><strong>Nombre:</strong> <span id="perfilNombre">-</span></p>
+        <p><strong>Usuario:</strong> <span id="perfilUsername">-</span></p>
+        <p><strong>Rol:</strong> <span id="perfilRole">-</span></p>
+      </div>
+      <h3 class="section-title">Cambiar contraseña</h3>
+      <div class="form-errors" id="perfilErrors" style="display:none;"></div>
+      <div class="field"><label>Contraseña actual</label><input type="password" id="perfilPassActual"></div>
+      <div class="field"><label>Nueva contraseña</label><input type="password" id="perfilPassNueva"></div>
+      <div class="field"><label>Repetir nueva contraseña</label><input type="password" id="perfilPassRepetir"></div>
+      <button class="primary" id="btnCambiarPass">Cambiar contraseña</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: USUARIOS -->
+<div class="modal" id="modalUsuarios" style="display:none;">
+  <div class="modal-content modal-wide">
+    <div class="modal-header"><h2>Gestión de usuarios</h2><button class="modal-close" id="btnCloseUsuarios">✕</button></div>
+    <div class="modal-body">
+      <h3 class="section-title">Usuarios existentes</h3>
+      <div class="wrap-table"><table>
+        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr></thead>
+        <tbody id="usersTbody"></tbody>
+      </table></div>
+      <h3 class="section-title" id="userFormTitle">Crear nuevo usuario</h3>
+      <div class="form-errors" id="userFormErrors" style="display:none;"></div>
+      <div class="row2">
+        <div class="field"><label>Usuario *</label><input id="uUsername"></div>
+        <div class="field"><label>Nombre *</label><input id="uNombre"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Contraseña *</label><input id="uPassword" type="password"></div>
+        <div class="field"><label>Rol *</label>
+          <select id="uRole">
+            <option value="trabajador">Trabajador</option>
+            <option value="administrador">Administrador</option>
+            <option value="programador">Programador</option>
+          </select>
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button class="primary" id="btnSaveUser">Crear usuario</button>
+        <button class="secondary" id="btnCancelUser" style="display:none;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PRESUPUESTOS -->
+<div class="modal" id="modalPresupuestos" style="display:none;">
+  <div class="modal-content modal-wide">
+    <div class="modal-header"><h2>Presupuestos mensuales</h2><button class="modal-close" id="btnClosePresupuestos">✕</button></div>
+    <div class="modal-body">
+      <p class="edit-hint">Definí un límite mensual por categoría. Se te va a avisar cuando te acerques o lo superes.</p>
+      <div class="wrap-table"><table>
+        <thead><tr><th>Categoría</th><th class="num">Presupuesto</th><th class="num">Gastado</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="budgetsTbody"></tbody>
+      </table></div>
+      <h3 class="section-title" id="budgetFormTitle">Nuevo presupuesto</h3>
+      <div class="form-errors" id="budgetFormErrors" style="display:none;"></div>
+      <div class="row2">
+        <div class="field"><label>Categoría *</label>
+          <select id="bCategoria">
+            <option value="Salarios">Salarios</option>
+            <option value="Gastos mantenimiento">Gastos mantenimiento</option>
+            <option value="Compras/reparaciones">Compras/reparaciones</option>
+            <option value="Servicios">Servicios (UTE, OSE, ANTEL, etc.)</option>
+            <option value="Impuestos y tasas">Impuestos y tasas</option>
+            <option value="Seguros">Seguros</option>
+            <option value="Gastos bancarios">Gastos bancarios</option>
+            <option value="Honorarios profesionales">Honorarios profesionales</option>
+            <option value="Gastos personales">Gastos personales</option>
+            <option value="Notas de crédito/devoluciones">Notas de crédito / devoluciones</option>
+            <option value="Otros">Otros</option>
+          </select>
+        </div>
+        <div class="field"><label>Monto mensual ($) *</label><input id="bMonto" type="number" step="0.01" min="0" placeholder="0.00"></div>
+      </div>
+      <div class="edit-actions">
+        <button class="primary" id="btnSaveBudget">Crear presupuesto</button>
+        <button class="secondary" id="btnCancelBudget" style="display:none;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAR ELIMINACIÓN -->
+<div class="modal" id="modalDelete" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header"><h2>Confirmar eliminación</h2><button class="modal-close" id="btnCloseDelete">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;color:var(--ink-soft);margin:0 0 14px;">Vas a eliminar el siguiente registro. Esta acción no se puede deshacer.</p>
+      <div class="profile-info">
+        <p><strong>Fecha:</strong> <span id="delFecha">-</span></p>
+        <p><strong>Local:</strong> <span id="delLocal">-</span></p>
+        <p><strong>Tipo:</strong> <span id="delTipo">-</span></p>
+        <p><strong>Detalle:</strong> <span id="delDetalle">-</span></p>
+        <p><strong>Total:</strong> <span id="delTotal">-</span></p>
+      </div>
+      <div class="edit-actions">
+        <button class="secondary" id="btnCancelDelete">Cancelar</button>
+        <button class="danger" id="btnConfirmDelete">Eliminar definitivamente</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: HISTORIAL -->
+<div class="modal" id="modalHistorial" style="display:none;">
+  <div class="modal-content modal-wide">
+    <div class="modal-header"><h2>Historial de cambios</h2><button class="modal-close" id="btnCloseHistorial">✕</button></div>
+    <div class="modal-body">
+      <p class="edit-hint">Últimos 200 cambios registrados (más recientes primero).</p>
+      <div class="wrap-table"><table>
+        <thead><tr><th>Fecha/Hora</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+        <tbody id="changelogTbody"></tbody>
+      </table></div>
+      <div class="empty" id="changelogEmpty">Sin cambios registrados.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VER ADJUNTO -->
+<div class="modal" id="modalAttachment" style="display:none;">
+  <div class="modal-content modal-wide">
+    <div class="modal-header"><h2 id="attachmentTitle">Adjunto</h2><button class="modal-close" id="btnCloseAttachment">✕</button></div>
+    <div class="modal-body" style="text-align:center;">
+      <img id="attachmentImg" style="max-width:100%;max-height:70vh;border-radius:8px;display:none;">
+      <iframe id="attachmentPdf" style="width:100%;height:70vh;border:none;border-radius:8px;display:none;"></iframe>
+      <a id="attachmentDownload" class="secondary" download style="display:none;margin-top:12px;text-decoration:none;">Descargar</a>
+    </div>
+  </div>
+</div>
+
+<!-- Módulos JS (el orden importa) -->
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/records.js"></script>
+<script src="js/exports.js"></script>
+<script src="js/ocr.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
