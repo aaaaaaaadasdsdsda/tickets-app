@@ -80,6 +80,7 @@ function wireFilters(){
   const desde  = document.getElementById('filtroDesde');
   const hasta  = document.getElementById('filtroHasta');
   const tipo   = document.getElementById('filtroTipo');
+  const proveedor = document.getElementById('filtroProveedor');
   const texto  = document.getElementById('filtroTexto');
 
   function populateMeses(){
@@ -90,36 +91,30 @@ function wireFilters(){
       mesesUnicos.map(m => `<option value="${m}">${mesLabel(m)}</option>`).join('');
     if(mesesUnicos.includes(valorActual)) mes.value = valorActual;
   }
+
+  function populateProveedores(){
+    const provs = [...new Set(records.map(r => (r.local||'').trim()).filter(Boolean))]
+      .sort((a,b) => a.localeCompare(b));
+    const valorActual = proveedor.value;
+    proveedor.innerHTML = '<option value="">Todos</option>' +
+      provs.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p}</option>`).join('');
+    if(provs.includes(valorActual)) proveedor.value = valorActual;
+  }
+
   window.__populateMeses = populateMeses;
+  window.__populateProveedores = populateProveedores;
 
-  mes.onchange = e => {
-    filtros.mes = e.target.value;
-    if(filtros.mes){
-      const [y, m] = filtros.mes.split('-').map(Number);
-      const primerDia = `${y}-${String(m).padStart(2,'0')}-01`;
-      const ultimoDia = new Date(y, m, 0).getDate();
-      const ultimo = `${y}-${String(m).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
-      filtros.desde = primerDia;
-      filtros.hasta = ultimo;
-      desde.value = primerDia;
-      hasta.value = ultimo;
-    } else {
-      filtros.desde = '';
-      filtros.hasta = '';
-      desde.value = '';
-      hasta.value = '';
-    }
-    renderTableRows();
-  };
+  mes.onchange = e => { filtros.mes = e.target.value; if(filtros.mes){ const [y,m]=filtros.mes.split('-').map(Number); const primerDia=`${y}-${String(m).padStart(2,'0')}-01`; const ultimoDia=new Date(y,m,0).getDate(); const ultimo=`${y}-${String(m).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`; filtros.desde=primerDia; filtros.hasta=ultimo; desde.value=primerDia; hasta.value=ultimo; } else { filtros.desde=''; filtros.hasta=''; desde.value=''; hasta.value=''; } renderTableRows(); };
 
-  desde.oninput = e => { filtros.desde = e.target.value; filtros.mes = ''; mes.value = ''; renderTableRows(); };
-  hasta.oninput = e => { filtros.hasta = e.target.value; filtros.mes = ''; mes.value = ''; renderTableRows(); };
+  desde.oninput = e => { filtros.desde = e.target.value; filtros.mes=''; mes.value=''; renderTableRows(); };
+  hasta.oninput = e => { filtros.hasta = e.target.value; filtros.mes=''; mes.value=''; renderTableRows(); };
   tipo.onchange = e => { filtros.tipo  = e.target.value; renderTableRows(); };
+  proveedor.onchange = e => { filtros.proveedor = e.target.value; renderTableRows(); };
   texto.oninput = e => { filtros.texto = e.target.value.trim(); renderTableRows(); };
 
   document.getElementById('btnLimpiarFiltros').onclick = ()=>{
-    filtros.mes = filtros.desde = filtros.hasta = filtros.tipo = filtros.texto = '';
-    mes.value = desde.value = hasta.value = tipo.value = texto.value = '';
+    filtros.mes = filtros.desde = filtros.hasta = filtros.tipo = filtros.proveedor = filtros.texto = '';
+    mes.value = desde.value = hasta.value = tipo.value = proveedor.value = texto.value = '';
     renderTableRows();
   };
 }

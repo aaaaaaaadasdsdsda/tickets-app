@@ -6,6 +6,17 @@ function symbolFor(moneda){
   return (moneda === 'USD') ? 'US$' : '$';
 }
 
+function actualizarListaProveedores(){
+  const lista = document.getElementById('listaProveedores');
+  if(!lista) return;
+  const proveedores = [...new Set(
+    records.map(r => (r.local || '').trim()).filter(Boolean)
+  )].sort((a,b) => a.localeCompare(b));
+  lista.innerHTML = proveedores
+    .map(p => `<option value="${p.replace(/"/g, '&quot;')}">`)
+    .join('');
+}
+
 function renderTotals(filtered){
   const el = document.getElementById('totalsBar');
 
@@ -95,6 +106,7 @@ function renderMonthly(filtered){
 
 function renderTableRows(){
   if(!currentUser) return;
+  actualizarListaProveedores();
   renderDashboard();
 
   const tbody = document.getElementById('tbody');
@@ -196,6 +208,18 @@ function renderTableRows(){
     } else {
       tr.appendChild(document.createElement('td'));
     }
+
+        // Celda duplicar
+    const tdDup = document.createElement('td');
+    if(canEdit()){
+      const btnDup = document.createElement('button');
+      btnDup.className = 'mini-btn';
+      btnDup.textContent = '♻️';
+      btnDup.title = 'Duplicar este registro en el formulario';
+      btnDup.onclick = (e)=>{ e.stopPropagation(); duplicarRegistro(r); };
+      tdDup.appendChild(btnDup);
+    }
+    tr.appendChild(tdDup);
 
     const tdDel = document.createElement('td');
     if(canEdit()){
@@ -606,4 +630,27 @@ function hacerCeldaEditable(td, record, campo){
     if(e.key === 'Escape'){ e.preventDefault(); cancelar(); }
   };
   input.onblur = guardar;
+}
+
+function duplicarRegistro(r){
+  if(!canEdit() || !r) return;
+  showTab('manual');
+  document.getElementById('fLocal').value        = r.local || '';
+  document.getElementById('fFecha').value        = r.fecha || '';
+  document.getElementById('fTipo').value         = r.tipo || 'Otros';
+  document.getElementById('fDetalle').value      = r.detalle || '';
+  document.getElementById('fTotal').value        = r.total ?? '';
+  document.getElementById('fIva').value          = r.iva ?? '';
+  document.getElementById('fMoneda').value       = r.moneda || 'UYU';
+  document.getElementById('fCondicion').value    = r.condicion || '';
+  document.getElementById('fRutEmisor').value    = r.rut_emisor || '';
+  document.getElementById('fRutComprador').value = r.rut_comprador || '';
+  document.getElementById('fNotas').value        = r.notas || '';
+  pendingFile = null;
+  const box = document.getElementById('fAdjuntoBox');
+  if(box) box.style.display = 'none';
+  clearRadioAdjuntar();
+  const prev = document.getElementById('fAdjuntoPreview');
+  if(prev) prev.innerHTML = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }

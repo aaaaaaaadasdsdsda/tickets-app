@@ -21,7 +21,7 @@ let chartMesesUSD = null;
 let chartCategoriasUYU = null;
 let chartCategoriasUSD = null;
 
-const filtros = { mes:'', desde:'', hasta:'', tipo:'', texto:'' };
+const filtros = { mes:'', desde:'', hasta:'', tipo:'', proveedor:'', texto:'' };
 
 // ---------- Utilidades generales ----------
 function canEdit(){
@@ -36,7 +36,7 @@ function mesLabel(yyyymm){
 }
 
 function isFilterActive(){
-  return !!(filtros.mes || filtros.desde || filtros.hasta || filtros.tipo || filtros.texto);
+  return !!(filtros.mes || filtros.desde || filtros.hasta || filtros.tipo || filtros.proveedor || filtros.texto);
 }
 
 function getFilteredRecords(){
@@ -45,6 +45,7 @@ function getFilteredRecords(){
     if(filtros.desde && (r.fecha||'') < filtros.desde) return false;
     if(filtros.hasta && (r.fecha||'') > filtros.hasta) return false;
     if(filtros.tipo && r.tipo !== filtros.tipo) return false;
+    if(filtros.proveedor && (r.local||'').trim() !== filtros.proveedor) return false;
     if(filtros.texto){
       const t = filtros.texto.toLowerCase();
       const hay = (r.local||'').toLowerCase().includes(t) ||

@@ -58,6 +58,7 @@ async function refreshRecords(){
   try{
     records = await apiList();
     if(window.__populateMeses) window.__populateMeses();
+    if(window.__populateProveedores) window.__populateProveedores();
     renderTableRows();
   }catch(e){
     console.error(e);

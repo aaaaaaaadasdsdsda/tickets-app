@@ -109,7 +109,11 @@
 
   <div class="panel" id="formPanel" style="display:none;">
     <div class="form-errors" id="formErrors" style="display:none;"></div>
-    <div class="field" id="wLocal"><label>Local / Comercio / Motivo *</label><input id="fLocal" placeholder="Ej: Farmacia X — compra de insumos"></div>
+    <div class="field" id="wLocal">
+      <label>Local / Comercio / Motivo *</label>
+      <input id="fLocal" list="listaProveedores" placeholder="Ej: Farmacia X — compra de insumos" autocomplete="off">
+      <datalist id="listaProveedores"></datalist>
+    </div>
     <div class="row2">
       <div class="field" id="wFecha"><label>Fecha *</label><input id="fFecha" type="date"></div>
       <div class="field"><label>Tipo de gasto *</label>
@@ -179,7 +183,10 @@
     <p class="edit-hint" id="editHint">Seleccioná un registro de la tabla de abajo para modificarlo.</p>
     <div class="form-errors" id="editErrors" style="display:none;"></div>
     <div id="editFields" style="display:none;">
-      <div class="field" id="ewLocal"><label>Local / Comercio / Motivo *</label><input id="eLocal"></div>
+      <div class="field" id="ewLocal">
+      <label>Local / Comercio / Motivo *</label>
+      <input id="eLocal" list="listaProveedores" autocomplete="off">
+    </div>
       <div class="row2">
         <div class="field" id="ewFecha"><label>Fecha *</label><input id="eFecha" type="date"></div>
         <div class="field"><label>Tipo de gasto *</label>
@@ -310,6 +317,9 @@
           <option value="Otros">Otros</option>
         </select>
       </div>
+      <div class="field"><label>Proveedor</label>
+        <select id="filtroProveedor"><option value="">Todos</option></select>
+      </div>
       <div class="field"><label>Buscar</label><input id="filtroTexto" placeholder="Local o detalle..."></div>
       <button type="button" id="btnLimpiarFiltros">Limpiar</button>
     </div>
@@ -318,7 +328,7 @@
     <div class="totals" id="totalsBar"></div>
 
     <div class="wrap-table"><table>
-      <thead><tr><th>Fecha</th><th>Local</th><th>Tipo</th><th>Detalle</th><th class="num">Total</th><th>Cond.</th><th class="num">IVA</th><th></th><th></th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Local</th><th>Tipo</th><th>Detalle</th><th class="num">Total</th><th>Cond.</th><th class="num">IVA</th><th></th><th></th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table></div>
     <div class="empty" id="emptyMsg">Todavía no hay registros.</div>
