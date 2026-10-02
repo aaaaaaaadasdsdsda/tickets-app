@@ -194,17 +194,15 @@ function renderTableRows(){
     tr.appendChild(tdIva);
 
     if(r.attachment){
-      const tdAdj = document.createElement('td');
-      const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
-      const btn = document.createElement('span');
-      btn.className = 'attachment-thumb';
-      btn.style.padding = '3px 7px';
-      btn.style.fontSize = '.7rem';
-      btn.textContent = esImagen ? '🖼️' : '📄';
-      btn.title = 'Ver adjunto';
-      btn.onclick = (e)=>{ e.stopPropagation(); openAttachment(r); };
-      tdAdj.appendChild(btn);
-      tr.appendChild(tdAdj);
+    const tdAdj = document.createElement('td');
+    const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
+    const btn = document.createElement('button');
+    btn.className = 'mini-btn';
+    btn.textContent = esImagen ? 'Ver imagen' : 'Ver PDF';
+    btn.title = 'Ver adjunto';
+    btn.onclick = (e)=>{ e.stopPropagation(); openAttachment(r); };
+    tdAdj.appendChild(btn);
+    tr.appendChild(tdAdj);
     } else {
       tr.appendChild(document.createElement('td'));
     }
@@ -214,8 +212,8 @@ function renderTableRows(){
     if(canEdit()){
       const btnDup = document.createElement('button');
       btnDup.className = 'mini-btn';
-      btnDup.textContent = '♻️';
-      btnDup.title = 'Duplicar este registro en el formulario';
+      btnDup.textContent = 'Duplicar';
+      btnDup.title = 'Copiar estos datos al formulario de carga';
       btnDup.onclick = (e)=>{ e.stopPropagation(); duplicarRegistro(r); };
       tdDup.appendChild(btnDup);
     }
@@ -225,7 +223,7 @@ function renderTableRows(){
     if(canEdit()){
       const btnDel = document.createElement('button');
       btnDel.className = 'mini-btn danger-mini';
-      btnDel.textContent = '🗑️';
+      btnDel.textContent = 'Eliminar';
       btnDel.title = 'Eliminar este registro';
       btnDel.onclick = (e)=>{ e.stopPropagation(); openDeleteConfirm(r); };
       tdDel.appendChild(btnDel);

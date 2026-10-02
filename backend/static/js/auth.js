@@ -59,6 +59,7 @@ async function handleLogin(e){
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
     records = await apiList();
     if(window.__populateMeses) window.__populateMeses();
+    if(window.__populateProveedores) window.__populateProveedores();
     await cargarBudgets();
     showApp();
     pedirPermisoNotificaciones();
@@ -76,6 +77,8 @@ async function tryRestoreSession(){
   }
   try{
     records = await apiList();
+    if(window.__populateMeses) window.__populateMeses();
+    if(window.__populateProveedores) window.__populateProveedores();
     if(!currentUser){
       currentUser = await apiFetch('/auth/me');
       localStorage.setItem(USER_KEY, JSON.stringify(currentUser));

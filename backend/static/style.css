@@ -92,7 +92,7 @@ button:focus-visible,.tab:focus-visible,.link-btn:focus-visible{outline:3px soli
 
 /* ---------- Tables ---------- */
 .wrap-table{overflow-x:auto;background:var(--card);border:1px solid var(--rule);border-radius:12px}
-table{width:100%;border-collapse:collapse;font-size:.79rem}th,td{padding:11px 10px;text-align:left;border-bottom:1px solid rgba(220,194,186,.55)}
+table{width:100%;border-collapse:collapse;font-size:.79rem}th,td{padding:11px 8px;text-align:left;border-bottom:1px solid rgba(220,194,186,.55)}
 thead th{color:var(--ink-soft);background:var(--soft);font-size:.68rem;font-weight:600;white-space:nowrap}
 tbody tr:last-child td{border-bottom:0}tbody td:first-child,tbody th:first-child{border-left:3px solid var(--primary)}
 tbody tr:nth-child(even){background:rgba(239,226,218,.34)}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -136,7 +136,7 @@ td.inline-edit{position:relative;cursor:text}td.inline-edit:hover:after{content:
 @keyframes modalIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 .modal-header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;background:rgba(248,241,236,.5);border-bottom:1px solid var(--rule)}.modal-header h2{margin:0;font-size:1.1rem}.modal-close{padding:4px 8px;color:var(--ink-soft);background:none;border:0;border-radius:6px;cursor:pointer}.modal-close:hover{background:rgba(114,34,54,.08);color:var(--ink)}.modal-body{padding:22px}
 .profile-info{margin-bottom:18px;padding:14px 16px;background:var(--soft);border:1px solid var(--rule);border-radius:10px}.profile-info p{margin:0 0 6px;font-size:.88rem}.profile-info p:last-child{margin-bottom:0}.profile-info strong{color:var(--ink-soft);font-size:.82rem}
-.mini-btn{margin-right:6px;padding:5px 10px;color:var(--primary);background:none;border:1px solid rgba(114,34,54,.4);border-radius:7px;cursor:pointer;font-size:.72rem;font-weight:600}.mini-btn:hover{background:rgba(114,34,54,.06)}.mini-btn.danger-mini{color:var(--error);border-color:rgba(163,59,45,.4)}
+.mini-btn{margin-right:6px;padding:5px 10px;color:var(--primary);background:none;border:1px solid rgba(114,34,54,.4);border-radius:7px;cursor:pointer;font-size:.72rem;font-weight:600; white-space: nowrap;}.mini-btn:hover{background:rgba(114,34,54,.06)}.mini-btn.danger-mini{color:var(--error);border-color:rgba(163,59,45,.4)}
 
 /* ---------- Condición (badges) ---------- */
 .cond-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
