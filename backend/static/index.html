@@ -184,9 +184,9 @@
     <div class="form-errors" id="editErrors" style="display:none;"></div>
     <div id="editFields" style="display:none;">
       <div class="field" id="ewLocal">
-      <label>Local / Comercio / Motivo *</label>
-      <input id="eLocal" list="listaProveedores" autocomplete="off">
-    </div>
+        <label>Local / Comercio / Motivo *</label>
+        <input id="eLocal" list="listaProveedores" autocomplete="off">
+      </div>
       <div class="row2">
         <div class="field" id="ewFecha"><label>Fecha *</label><input id="eFecha" type="date"></div>
         <div class="field"><label>Tipo de gasto *</label>
@@ -479,13 +479,37 @@
   </div>
 </div>
 
-<script>
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW no registrado:', err));
-    });
-  }
-</script>
+<!-- MODAL: POSIBLE DUPLICADO -->
+<div class="modal" id="modalDuplicado" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>⚠️ Posible duplicado</h2>
+      <button class="modal-close" id="btnCloseDuplicado">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:.9rem;color:var(--ink-soft);margin:0 0 14px;">
+        Ya existe un registro con la misma fecha y monto. Revisá antes de guardar.
+      </p>
+
+      <div class="profile-info" style="border-left:4px solid var(--warning);">
+        <p style="font-weight:700;color:var(--warning);margin-bottom:8px;">Registro existente:</p>
+        <p><strong>Fecha:</strong> <span id="dupFecha">-</span></p>
+        <p><strong>Local:</strong> <span id="dupLocal">-</span></p>
+        <p><strong>Detalle:</strong> <span id="dupDetalle">-</span></p>
+        <p><strong>Total:</strong> <span id="dupTotal">-</span></p>
+      </div>
+
+      <p style="font-size:.85rem;color:var(--ink-soft);margin-bottom:16px;">
+        Si estás seguro de que es un gasto distinto, podés guardarlo igual.
+      </p>
+
+      <div class="edit-actions">
+        <button class="secondary" id="btnCancelarDuplicado" style="flex:1;">Cancelar</button>
+        <button class="primary" id="btnGuardarIgual" style="flex:1;">Guardar igual</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Módulos JS (el orden importa) -->
 <script src="js/state.js"></script>

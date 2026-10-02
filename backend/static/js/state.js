@@ -15,6 +15,9 @@ let budgets = [];
 let pendingFile = null;
 let alertasMostradas = new Set();
 
+// Bandera para el modal de duplicados
+let guardarDuplicadoAprobado = false;
+
 // Gráficos (4, uno por moneda y tipo)
 let chartMesesUYU = null;
 let chartMesesUSD = null;

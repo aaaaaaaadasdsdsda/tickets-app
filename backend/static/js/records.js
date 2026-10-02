@@ -1,11 +1,12 @@
 // ==========================================================
-//  records.js — tabla, filtros, formularios, adjuntos
+//  records.js — tabla, filtros, formularios, adjuntos, duplicados
 // ==========================================================
 
 function symbolFor(moneda){
   return (moneda === 'USD') ? 'US$' : '$';
 }
 
+// ---------- Autocompletar proveedores ----------
 function actualizarListaProveedores(){
   const lista = document.getElementById('listaProveedores');
   if(!lista) return;
@@ -17,6 +18,7 @@ function actualizarListaProveedores(){
     .join('');
 }
 
+// ---------- Totales ----------
 function renderTotals(filtered){
   const el = document.getElementById('totalsBar');
 
@@ -47,6 +49,7 @@ function renderTotals(filtered){
   `;
 }
 
+// ---------- Detalle por mes (UYU y USD) ----------
 function renderMonthly(filtered){
   const tbodyUYU = document.getElementById('tbodyResumenUYU');
   const tbodyUSD = document.getElementById('tbodyResumenUSD');
@@ -104,6 +107,7 @@ function renderMonthly(filtered){
   }
 }
 
+// ---------- Tabla principal ----------
 function renderTableRows(){
   if(!currentUser) return;
   actualizarListaProveedores();
@@ -193,21 +197,22 @@ function renderTableRows(){
       : '-';
     tr.appendChild(tdIva);
 
+    // Adjunto
     if(r.attachment){
-    const tdAdj = document.createElement('td');
-    const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
-    const btn = document.createElement('button');
-    btn.className = 'mini-btn';
-    btn.textContent = esImagen ? 'Ver imagen' : 'Ver PDF';
-    btn.title = 'Ver adjunto';
-    btn.onclick = (e)=>{ e.stopPropagation(); openAttachment(r); };
-    tdAdj.appendChild(btn);
-    tr.appendChild(tdAdj);
+      const tdAdj = document.createElement('td');
+      const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
+      const btn = document.createElement('button');
+      btn.className = 'mini-btn';
+      btn.textContent = esImagen ? 'Ver imagen' : 'Ver PDF';
+      btn.title = 'Ver adjunto';
+      btn.onclick = (e)=>{ e.stopPropagation(); openAttachment(r); };
+      tdAdj.appendChild(btn);
+      tr.appendChild(tdAdj);
     } else {
       tr.appendChild(document.createElement('td'));
     }
 
-        // Celda duplicar
+    // Duplicar
     const tdDup = document.createElement('td');
     if(canEdit()){
       const btnDup = document.createElement('button');
@@ -219,6 +224,7 @@ function renderTableRows(){
     }
     tr.appendChild(tdDup);
 
+    // Eliminar
     const tdDel = document.createElement('td');
     if(canEdit()){
       const btnDel = document.createElement('button');
@@ -351,9 +357,6 @@ async function handleSave(){
     box.textContent = 'Elegiste adjuntar un archivo, pero no seleccionaste ninguno.';
     return;
   }
-  if(adjuntar === 'no'){
-    pendingFile = null;
-  }
 
   const ivaRaw = document.getElementById('fIva').value;
   const condicionRaw = document.getElementById('fCondicion').value;
@@ -372,6 +375,22 @@ async function handleSave(){
     rut_comprador: document.getElementById('fRutComprador').value.trim() || null,
     notas: notasRaw || null,
   };
+
+  // Verificar duplicados (solo si no fue aprobado ya)
+  if(!guardarDuplicadoAprobado){
+    const dup = buscarDuplicado(rec);
+    if(dup){
+      mostrarModalDuplicado(dup);
+      return;
+    }
+  }
+
+  guardarDuplicadoAprobado = false;
+
+  if(adjuntar === 'no'){
+    pendingFile = null;
+  }
+
   try{
     const created = await apiCreate(rec);
     if(pendingFile && created && created.id){
@@ -394,6 +413,84 @@ async function handleSave(){
   }
 }
 
+// ---------- Detección de duplicados ----------
+function buscarDuplicado(candidato){
+  const totalNuevo = Number(candidato.total || 0).toFixed(2);
+  const rutNuevo = (candidato.rut_emisor || '').trim();
+  const localNuevo = (candidato.local || '').trim().toLowerCase();
+
+  for(const r of records){
+    if((r.fecha || '') !== candidato.fecha) continue;
+    if(Number(r.total || 0).toFixed(2) !== totalNuevo) continue;
+
+    if(rutNuevo && r.rut_emisor){
+      if(r.rut_emisor.trim() === rutNuevo) return r;
+      continue;
+    }
+    if((r.local || '').trim().toLowerCase() === localNuevo) return r;
+  }
+  return null;
+}
+
+function mostrarModalDuplicado(dup){
+  const sym = (dup.moneda === 'USD') ? 'US$' : '$';
+  document.getElementById('dupFecha').textContent   = dup.fecha || '-';
+  document.getElementById('dupLocal').textContent   = dup.local || '-';
+  document.getElementById('dupDetalle').textContent = dup.detalle || '-';
+  document.getElementById('dupTotal').textContent   = `${sym} ${Number(dup.total||0).toFixed(2)}`;
+
+  const modal = document.getElementById('modalDuplicado');
+  modal.style.display = 'flex';
+
+  document.getElementById('btnCancelarDuplicado').onclick = ()=>{
+    modal.style.display = 'none';
+    guardarDuplicadoAprobado = false;
+  };
+
+  document.getElementById('btnGuardarIgual').onclick = async ()=>{
+    modal.style.display = 'none';
+    guardarDuplicadoAprobado = true;
+    await handleSave();
+  };
+
+  document.getElementById('btnCloseDuplicado').onclick = ()=>{
+    modal.style.display = 'none';
+    guardarDuplicadoAprobado = false;
+  };
+
+  modal.onclick = (e)=>{
+    if(e.target === modal){
+      modal.style.display = 'none';
+      guardarDuplicadoAprobado = false;
+    }
+  };
+}
+
+// ---------- Duplicar registro (a formulario) ----------
+function duplicarRegistro(r){
+  if(!canEdit() || !r) return;
+  showTab('manual');
+  document.getElementById('fLocal').value        = r.local || '';
+  document.getElementById('fFecha').value        = r.fecha || '';
+  document.getElementById('fTipo').value         = r.tipo || 'Otros';
+  document.getElementById('fDetalle').value      = r.detalle || '';
+  document.getElementById('fTotal').value        = r.total ?? '';
+  document.getElementById('fIva').value          = r.iva ?? '';
+  document.getElementById('fMoneda').value       = r.moneda || 'UYU';
+  document.getElementById('fCondicion').value    = r.condicion || '';
+  document.getElementById('fRutEmisor').value    = r.rut_emisor || '';
+  document.getElementById('fRutComprador').value = r.rut_comprador || '';
+  document.getElementById('fNotas').value        = r.notas || '';
+  pendingFile = null;
+  const box = document.getElementById('fAdjuntoBox');
+  if(box) box.style.display = 'none';
+  clearRadioAdjuntar();
+  const prev = document.getElementById('fAdjuntoPreview');
+  if(prev) prev.innerHTML = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---------- Modificaciones ----------
 let editingId = null;
 
 function resetEditPanel(message){
@@ -479,6 +576,7 @@ function handleCancelEdit(){
   resetEditPanel('Edición cancelada. Seleccioná otro registro de la tabla para editarlo.');
 }
 
+// ---------- Modal de eliminar ----------
 function openDeleteModal(){
   if(!canEdit() || editingId == null) return;
   const r = records.find(x => x.id === editingId);
@@ -514,6 +612,7 @@ async function confirmDelete(){
   }
 }
 
+// ---------- Adjuntos ----------
 const modalAttachment = document.getElementById('modalAttachment');
 
 function openAttachment(r){
@@ -569,6 +668,7 @@ async function handleDetach(){
   }
 }
 
+// ---------- Edición rápida en línea ----------
 function hacerCeldaEditable(td, record, campo){
   const valorActual = record[campo] || '';
   const esTipo = campo === 'tipo';
@@ -628,27 +728,4 @@ function hacerCeldaEditable(td, record, campo){
     if(e.key === 'Escape'){ e.preventDefault(); cancelar(); }
   };
   input.onblur = guardar;
-}
-
-function duplicarRegistro(r){
-  if(!canEdit() || !r) return;
-  showTab('manual');
-  document.getElementById('fLocal').value        = r.local || '';
-  document.getElementById('fFecha').value        = r.fecha || '';
-  document.getElementById('fTipo').value         = r.tipo || 'Otros';
-  document.getElementById('fDetalle').value      = r.detalle || '';
-  document.getElementById('fTotal').value        = r.total ?? '';
-  document.getElementById('fIva').value          = r.iva ?? '';
-  document.getElementById('fMoneda').value       = r.moneda || 'UYU';
-  document.getElementById('fCondicion').value    = r.condicion || '';
-  document.getElementById('fRutEmisor').value    = r.rut_emisor || '';
-  document.getElementById('fRutComprador').value = r.rut_comprador || '';
-  document.getElementById('fNotas').value        = r.notas || '';
-  pendingFile = null;
-  const box = document.getElementById('fAdjuntoBox');
-  if(box) box.style.display = 'none';
-  clearRadioAdjuntar();
-  const prev = document.getElementById('fAdjuntoPreview');
-  if(prev) prev.innerHTML = '';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }

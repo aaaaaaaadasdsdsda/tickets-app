@@ -23,7 +23,6 @@ function showTab(which){
   if(which==='manual'){
     document.getElementById('tabManual').classList.add('active');
     document.getElementById('formPanel').style.display='block';
-    // Si hay un archivo pendiente (por ejemplo del OCR), sincronizamos el preview
     if(typeof syncPendingPreview === 'function') syncPendingPreview();
   }
   if(which==='edit'){
@@ -76,13 +75,14 @@ function validateFields(prefix, boxId, wrapIds){
 }
 
 function wireFilters(){
-  const mes    = document.getElementById('filtroMes');
-  const desde  = document.getElementById('filtroDesde');
-  const hasta  = document.getElementById('filtroHasta');
-  const tipo   = document.getElementById('filtroTipo');
+  const mes       = document.getElementById('filtroMes');
+  const desde     = document.getElementById('filtroDesde');
+  const hasta     = document.getElementById('filtroHasta');
+  const tipo      = document.getElementById('filtroTipo');
   const proveedor = document.getElementById('filtroProveedor');
-  const texto  = document.getElementById('filtroTexto');
+  const texto     = document.getElementById('filtroTexto');
 
+  // Poblar el selector de meses
   function populateMeses(){
     const mesesUnicos = [...new Set(records.map(r => (r.fecha||'').slice(0,7)).filter(Boolean))]
       .sort().reverse();
@@ -92,6 +92,7 @@ function wireFilters(){
     if(mesesUnicos.includes(valorActual)) mes.value = valorActual;
   }
 
+  // Poblar el selector de proveedores
   function populateProveedores(){
     const provs = [...new Set(records.map(r => (r.local||'').trim()).filter(Boolean))]
       .sort((a,b) => a.localeCompare(b));
@@ -101,13 +102,33 @@ function wireFilters(){
     if(provs.includes(valorActual)) proveedor.value = valorActual;
   }
 
+  // Exponer globalmente para llamarlas desde auth.js
   window.__populateMeses = populateMeses;
   window.__populateProveedores = populateProveedores;
 
-  mes.onchange = e => { filtros.mes = e.target.value; if(filtros.mes){ const [y,m]=filtros.mes.split('-').map(Number); const primerDia=`${y}-${String(m).padStart(2,'0')}-01`; const ultimoDia=new Date(y,m,0).getDate(); const ultimo=`${y}-${String(m).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`; filtros.desde=primerDia; filtros.hasta=ultimo; desde.value=primerDia; hasta.value=ultimo; } else { filtros.desde=''; filtros.hasta=''; desde.value=''; hasta.value=''; } renderTableRows(); };
+  // Handlers
+  mes.onchange = e => {
+    filtros.mes = e.target.value;
+    if(filtros.mes){
+      const [y, m] = filtros.mes.split('-').map(Number);
+      const primerDia = `${y}-${String(m).padStart(2,'0')}-01`;
+      const ultimoDia = new Date(y, m, 0).getDate();
+      const ultimo = `${y}-${String(m).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+      filtros.desde = primerDia;
+      filtros.hasta = ultimo;
+      desde.value = primerDia;
+      hasta.value = ultimo;
+    } else {
+      filtros.desde = '';
+      filtros.hasta = '';
+      desde.value = '';
+      hasta.value = '';
+    }
+    renderTableRows();
+  };
 
-  desde.oninput = e => { filtros.desde = e.target.value; filtros.mes=''; mes.value=''; renderTableRows(); };
-  hasta.oninput = e => { filtros.hasta = e.target.value; filtros.mes=''; mes.value=''; renderTableRows(); };
+  desde.oninput = e => { filtros.desde = e.target.value; filtros.mes = ''; mes.value = ''; renderTableRows(); };
+  hasta.oninput = e => { filtros.hasta = e.target.value; filtros.mes = ''; mes.value = ''; renderTableRows(); };
   tipo.onchange = e => { filtros.tipo  = e.target.value; renderTableRows(); };
   proveedor.onchange = e => { filtros.proveedor = e.target.value; renderTableRows(); };
   texto.oninput = e => { filtros.texto = e.target.value.trim(); renderTableRows(); };
