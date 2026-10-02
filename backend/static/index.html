@@ -469,6 +469,14 @@
   </div>
 </div>
 
+<script>
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW no registrado:', err));
+    });
+  }
+</script>
+
 <!-- Módulos JS (el orden importa) -->
 <script src="js/state.js"></script>
 <script src="js/api.js"></script>
