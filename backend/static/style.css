@@ -14,6 +14,9 @@
   --warning:#A06C20;--warning-bg:#FFF3D6;
   --success:var(--forest);--success-bg:#E8F2EB;
 
+  /* botones sólidos (en oscuro son más profundos que --primary) */
+  --btn:var(--burgundy);--btn-hov:var(--burgundy-hov);--dng:var(--cherry);--dng-hov:#A8182F;
+
   /* canales RGB (permiten rgba(var(--pr),.1) y cambian con el tema) */
   --pr:107,30,53;--ac:196,30,58;
 
@@ -44,6 +47,7 @@
   --error:#E8455E;--error-bg:#3A1E22;
   --warning:#D4A24A;--warning-bg:#332B18;
   --success:#4A9B6E;--success-bg:#1A2E23;
+  --btn:#7E2A46;--btn-hov:#963553;--dng:#B02A40;--dng-hov:#C8334A;
   --pr:196,106,130;
   --hdr-a:rgba(10,10,10,.95);--hdr-b:rgba(107,30,53,.3);
   --tabs:rgba(20,22,24,.88);--tab-h:rgba(31,35,40,.9);
@@ -145,7 +149,7 @@ body:has(.tab.active:nth-child(n+4)) .panel{animation-name:panelInR}
 }
 .login-box{
   width:min(100%,380px);padding:40px 34px 34px;background:var(--card);border:1px solid var(--rule-light);
-  border-top:4px solid var(--primary);border-radius:20px;box-shadow:var(--shadow-lg);
+  border-top:4px solid var(--btn);border-radius:20px;box-shadow:var(--shadow-lg);
   animation:modalIn .55s var(--spring) both;transition:var(--tt);
 }
 .login-box h1{margin-bottom:6px;text-align:center;font-size:1.7rem;font-weight:700}
@@ -187,10 +191,10 @@ button.primary:active,button.secondary:active,button.danger:active,.filters butt
 
 button.primary{
   position:relative;overflow:hidden;width:100%;min-height:48px;margin-top:8px;padding:13px 20px;color:#fff;
-  background:var(--primary);border:0;border-radius:12px;cursor:pointer;font-size:.92rem;font-weight:600;
-  box-shadow:0 6px 16px rgba(var(--pr),.24);
+  background:var(--btn);border:0;border-radius:12px;cursor:pointer;font-size:.92rem;font-weight:600;
+  box-shadow:0 6px 16px rgba(var(--pr),.22);
 }
-button.primary:hover{background:var(--primary-hov);transform:translateY(-2px);box-shadow:0 10px 24px rgba(var(--pr),.32)}
+button.primary:hover{background:var(--btn-hov);transform:translateY(-2px);box-shadow:0 10px 24px rgba(var(--pr),.3)}
 button.primary:active{transform:translateY(0) scale(.98);box-shadow:0 3px 10px rgba(var(--pr),.2)}
 button.primary::after{
   content:"";position:absolute;inset:0;opacity:0;transition:opacity .35s;
@@ -211,8 +215,8 @@ button.secondary,.edit-actions .secondary,.filters button{
 }
 button.secondary:hover,.edit-actions .secondary:hover,.filters button:hover{background:rgba(var(--pr),.07);border-color:var(--primary);transform:translateY(-1px)}
 
-button.danger{min-height:40px;padding:9px 16px;color:#fff;background:var(--error);border:0;border-radius:11px;cursor:pointer;font-size:.83rem;font-weight:600}
-button.danger:hover{background:#A8182F;transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--ac),.28)}
+button.danger{min-height:40px;padding:9px 16px;color:#fff;background:var(--dng);border:0;border-radius:11px;cursor:pointer;font-size:.83rem;font-weight:600}
+button.danger:hover{background:var(--dng-hov);transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--ac),.28)}
 
 .link-btn{padding:0;color:var(--primary);background:none;border:0;border-bottom:1px solid rgba(var(--pr),.35);cursor:pointer;font-size:.8rem;font-weight:500}
 .link-btn:hover{opacity:.65;border-color:transparent;transform:translateY(-1px)}
@@ -224,13 +228,21 @@ button:focus-visible,.tab:focus-visible,.link-btn:focus-visible{outline:3px soli
 .export-row h2{font-size:1.25rem;font-weight:600}
 .export-actions{display:flex;gap:8px;flex-wrap:wrap}
 .export-row button,.export-actions button{
-  min-height:40px;padding:9px 16px;color:#fff;background:var(--primary);border:0;border-radius:11px;
+  min-height:40px;padding:9px 16px;color:#fff;background:var(--btn);border:0;border-radius:11px;
   cursor:pointer;font-size:.8rem;font-weight:600;white-space:nowrap;
 }
-.export-row button:hover,.export-actions button:hover{background:var(--primary-hov);transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--pr),.25)}
+.export-row button:hover,.export-actions button:hover{background:var(--btn-hov);transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--pr),.22)}
 #exportNameField{max-width:340px}
 .import-status{min-height:1.2em;margin-bottom:12px;color:var(--ink-soft);font-size:.82rem}
-.section-title{margin:24px 0 12px;text-align:center;font-size:1.05rem;font-weight:600}
+/* título de sección con filetes laterales */
+.section-title{
+  display:flex;align-items:center;gap:16px;margin:24px 0 12px;text-align:center;justify-content:center;
+  font-size:1.05rem;font-weight:600;
+}
+.section-title::before,.section-title::after{
+  content:"";flex:1;height:1px;max-width:120px;background:linear-gradient(90deg,transparent,var(--rule));
+}
+.section-title::after{background:linear-gradient(270deg,transparent,var(--rule))}
 .edit-hint{margin-bottom:16px;color:var(--ink-soft);font-size:.85rem}
 
 /* ═════════ DROPZONE ═════════ */
@@ -274,11 +286,12 @@ tbody tr:nth-child(2){animation-delay:.03s}tbody tr:nth-child(3){animation-delay
 tbody tr:nth-child(4){animation-delay:.09s}tbody tr:nth-child(5){animation-delay:.12s}
 tbody tr:nth-child(n+6){animation-delay:.15s}
 tbody tr:last-child td{border-bottom:0}
-tbody td:first-child,tbody th:first-child{border-left:3px solid var(--primary)}
+tbody td:first-child,tbody th:first-child{border-left:3px solid var(--primary);transition:var(--tt)}
 tbody tr:nth-child(even){background:var(--alt)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
 tr.clickable{cursor:pointer}
 tr.clickable:hover{background:var(--hov);transform:scale(1.005);box-shadow:var(--shadow-sm);position:relative;z-index:1}
+tr.clickable:hover td:first-child{border-left-color:var(--accent)}
 tr.clickable:active{transform:scale(.998)}
 
 .empty{padding:36px 0 20px;color:var(--ink-soft);text-align:center;font-size:.85rem}
@@ -311,9 +324,8 @@ td.inline-edit:hover::after{opacity:.5}
 .total-item{flex:1;min-width:150px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px}
 .total-item span,.dash-card span{color:var(--ink-soft);font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 
-/* borde superior de color (solo dentro del panel Dashboard;
-   si el id del panel no contiene "dash", ajustar el selector de .total-item) */
-.dash-card::before,[id*="dash" i] .total-item::before{
+/* borde superior de color solo en las cards del dashboard */
+.dash-card::before{
   content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--primary),var(--accent));
 }
 
@@ -406,7 +418,7 @@ td.inline-edit:hover::after{opacity:.5}
 /* ═════════ RADIO ═════════ */
 .radio-group{display:flex;gap:24px;margin-top:4px;padding:6px 0}
 .radio-option{display:flex;align-items:center;gap:9px;color:var(--ink);cursor:pointer;font-size:.9rem;font-weight:500;user-select:none;transition:color .2s}
-.radio-option input{width:18px;height:18px;margin:0;accent-color:var(--primary);cursor:pointer}
+.radio-option input{width:18px;height:18px;margin:0;accent-color:var(--btn);cursor:pointer}
 .radio-option:hover{color:var(--primary)}
 
 /* ═════════ MODALES ═════════ */
@@ -482,8 +494,20 @@ td.inline-edit:hover::after{opacity:.5}
   .login-box{padding:32px 22px 26px}header h1{font-size:1.5rem}
 }
 
+/* ═════════ IMPRESIÓN (para imprimir tablas y reportes) ═════════ */
+@media print{
+  body{background:#fff;color:#000}
+  body::before,header::after,.tabs,.session-bar,.export-actions,.modal,.login-overlay,button,.filters{display:none!important}
+  header{background:none;backdrop-filter:none;padding:0 0 12px}
+  .panel,.total-item,.dash-card,.chart-container,.budget-item{box-shadow:none!important;animation:none!important;break-inside:avoid}
+  .wrap-table{max-height:none;overflow:visible}
+  thead th{position:static;box-shadow:none}thead th::after,.dash-card::before{display:none}
+  tbody tr{animation:none}
+  .total-item strong,.dash-card strong{background:none;-webkit-text-fill-color:#000;color:#000}
+}
+
 /* ═════════ MOVIMIENTO REDUCIDO ═════════ */
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
-} 
+}
