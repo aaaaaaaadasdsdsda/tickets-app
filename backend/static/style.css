@@ -182,7 +182,7 @@ body:has(.tab.active:nth-child(n+4)) .panel{animation-name:panelInR}
 
 /* ═════════ BOTONES ═════════ */
 button{-webkit-tap-highlight-color:transparent}
-button.primary,button.secondary,button.danger,.edit-actions .secondary,.filters button,.export-row button,
+button.primary,button.secondary,button.danger,a.secondary,.edit-actions .secondary,.filters button,.export-row button,
 .export-actions button,.mini-btn,.link-btn{transition:var(--tt),var(--ti),opacity .2s var(--ease)}
 button.primary:active,button.secondary:active,button.danger:active,.filters button:active,.export-row button:active,
 .export-actions button:active,.mini-btn:active{transform:scale(.96)}
@@ -207,11 +207,12 @@ button.primary::before{
 }
 button.primary:hover::before{transform:translateX(330%) skewX(-20deg);transition:transform .6s var(--ease)}
 
-button.secondary,.edit-actions .secondary,.filters button{
+button.secondary,a.secondary,.edit-actions .secondary,.filters button{
   min-height:40px;padding:9px 16px;color:var(--primary);background:transparent;
   border:1.5px solid rgba(var(--pr),.4);border-radius:11px;cursor:pointer;font-size:.83rem;font-weight:600;
 }
-button.secondary:hover,.edit-actions .secondary:hover,.filters button:hover{background:rgba(var(--pr),.07);border-color:var(--primary);transform:translateY(-1px)}
+button.secondary:hover,a.secondary:hover,.edit-actions .secondary:hover,.filters button:hover{background:rgba(var(--pr),.07);border-color:var(--primary);transform:translateY(-1px)}
+a.secondary{display:inline-flex;align-items:center;justify-content:center}
 
 button.danger{min-height:40px;padding:9px 16px;color:#fff;background:var(--dng);border:0;border-radius:11px;cursor:pointer;font-size:.83rem;font-weight:600}
 button.danger:hover{background:var(--dng-hov);transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--ac),.28)}
@@ -219,7 +220,7 @@ button.danger:hover{background:var(--dng-hov);transform:translateY(-1px);box-sha
 .link-btn{padding:0;color:var(--primary);background:none;border:0;border-bottom:1px solid rgba(var(--pr),.35);cursor:pointer;font-size:.8rem;font-weight:500}
 .link-btn:hover{opacity:.65;border-color:transparent;transform:translateY(-1px)}
 
-button:focus-visible,.tab:focus-visible,.link-btn:focus-visible{outline:3px solid rgba(var(--pr),.28);outline-offset:2px}
+button:focus-visible,.tab:focus-visible,.link-btn:focus-visible,a.secondary:focus-visible{outline:3px solid rgba(var(--pr),.28);outline-offset:2px}
 
 /* ═════════ TÍTULOS / EXPORT ═════════ */
 .export-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}
@@ -230,6 +231,9 @@ button:focus-visible,.tab:focus-visible,.link-btn:focus-visible{outline:3px soli
   cursor:pointer;font-size:.8rem;font-weight:600;white-space:nowrap;
 }
 .export-row button:hover,.export-actions button:hover{background:var(--btn-hov);transform:translateY(-1px);box-shadow:0 6px 14px rgba(var(--pr),.22)}
+/* los botones "secondary" dentro de export-row/actions mantienen su estilo de contorno */
+.export-row button.secondary,.export-actions button.secondary{color:var(--primary);background:transparent;border:1.5px solid rgba(var(--pr),.4)}
+.export-row button.secondary:hover,.export-actions button.secondary:hover{background:rgba(var(--pr),.07);border-color:var(--primary);box-shadow:none}
 #exportNameField{max-width:340px}
 .import-status{min-height:1.2em;margin-bottom:12px;color:var(--ink-soft);font-size:.82rem}
 /* título de sección con filetes laterales */
@@ -241,6 +245,9 @@ button:focus-visible,.tab:focus-visible,.link-btn:focus-visible{outline:3px soli
   content:"";flex:1;height:1px;max-width:120px;background:linear-gradient(90deg,transparent,var(--rule));
 }
 .section-title::after{background:linear-gradient(270deg,transparent,var(--rule))}
+/* dentro de export-row (junto a un botón) sin filetes */
+.export-row .section-title{justify-content:flex-start}
+.export-row .section-title::before,.export-row .section-title::after{display:none}
 .edit-hint{margin-bottom:16px;color:var(--ink-soft);font-size:.85rem}
 
 /* ═════════ DROPZONE ═════════ */
@@ -401,9 +408,11 @@ td.inline-edit:hover::after{opacity:.5}
 @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(var(--ac),.22)}50%{box-shadow:0 0 0 7px rgba(var(--ac),0)}}
 
 /* ═════════ EDICIÓN / ADJUNTOS / LOG ═════════ */
-.edit-actions{display:flex;gap:12px;margin-top:12px}
-.edit-actions button{flex:1;min-height:48px}
-.edit-actions .secondary,.edit-actions .danger{padding:13px 16px;border-radius:12px}
+.edit-actions{display:flex;align-items:stretch;gap:12px;margin-top:12px}
+.edit-actions button,.edit-actions .secondary,.edit-actions .danger{
+  flex:1 1 0;width:auto;min-height:48px;margin:0;padding:13px 16px;
+  border-radius:12px;font-size:.88rem;font-weight:600;line-height:1.2;
+}
 
 .attachment-thumb{
   display:inline-flex;align-items:center;gap:10px;padding:10px 14px;color:var(--ink-soft);background:var(--soft);
@@ -483,6 +492,7 @@ td.inline-edit:hover::after{opacity:.5}
   .tabs{grid-template-columns:1fr 1fr;gap:4px;padding:5px}
   .tab{min-height:40px;padding:9px 7px;font-size:.76rem}
   .row2,.edit-actions,.export-actions{flex-direction:column}
+  .edit-actions button,.edit-actions .secondary,.edit-actions .danger{flex:none;width:100%}
   .dropzone{min-height:180px;padding:36px 16px}
   .export-actions,.export-actions button{width:100%}
   .filters,.dash-cards{grid-template-columns:1fr}.filters button{grid-column:auto}
