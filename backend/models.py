@@ -47,3 +47,4 @@ class ChangeLog(Base):
     detalle_antes = Column(String, nullable=True)
     detalle_despues = Column(String, nullable=True)
     creado = Column(DateTime, default=datetime.utcnow)
+
