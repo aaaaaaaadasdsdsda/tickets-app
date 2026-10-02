@@ -1,3 +1,7 @@
+// ==========================================================
+//  dashboard.js — dashboard, presupuestos, alertas, gráficos
+// ==========================================================
+
 async function cargarBudgets(){
   try{
     budgets = await apiFetch('/budgets');
@@ -17,12 +21,14 @@ function estadoPresupuesto(gastado, limite){
 function renderBudgets(){
   const cont = document.getElementById('budgetsList');
   const empty = document.getElementById('budgetsEmpty');
+
   const now = new Date();
   const mesActual = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
   const gastadoPorCat = {};
   for(const r of records){
     if(!(r.fecha||'').startsWith(mesActual)) continue;
+    if((r.moneda || 'UYU') !== 'UYU') continue;
     const cat = r.tipo || 'Otros';
     gastadoPorCat[cat] = (gastadoPorCat[cat] || 0) + Number(r.total||0);
   }
@@ -65,6 +71,7 @@ function mostrarAlertaGlobal(){
   const gastadoPorCat = {};
   for(const r of records){
     if(!(r.fecha||'').startsWith(mesActual)) continue;
+    if((r.moneda || 'UYU') !== 'UYU') continue;
     const cat = r.tipo || 'Otros';
     gastadoPorCat[cat] = (gastadoPorCat[cat] || 0) + Number(r.total||0);
   }
@@ -120,15 +127,20 @@ function renderDashboard(){
   const mesActual = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const delMes = records.filter(r => (r.fecha||'').startsWith(mesActual));
 
-  const total = delMes.reduce((s,r)=> s + Number(r.total||0), 0);
-  const cant  = delMes.length;
-  const prom  = cant ? total / cant : 0;
+  const delMesUYU = delMes.filter(r => (r.moneda || 'UYU') === 'UYU');
+  const delMesUSD = delMes.filter(r => r.moneda === 'USD');
+
+  const totalUYU = delMesUYU.reduce((s,r)=> s + Number(r.total||0), 0);
+  const totalUSD = delMesUSD.reduce((s,r)=> s + Number(r.total||0), 0);
+  const cant     = delMes.length;
+  const promUYU  = delMesUYU.length ? totalUYU / delMesUYU.length : 0;
 
   document.getElementById('dashGreeting').textContent = `Hola, ${currentUser.nombre} 👋`;
   document.getElementById('dashSubtitle').textContent = `Resumen de ${mesLabel(mesActual)}`;
-  document.getElementById('dashTotalMes').textContent = `$ ${total.toFixed(2)}`;
+  document.getElementById('dashTotalUYU').textContent = `$ ${totalUYU.toFixed(2)}`;
+  document.getElementById('dashTotalUSD').textContent = `US$ ${totalUSD.toFixed(2)}`;
   document.getElementById('dashCantMes').textContent  = cant;
-  document.getElementById('dashPromedio').textContent = `$ ${prom.toFixed(2)}`;
+  document.getElementById('dashPromedio').textContent = `$ ${promUYU.toFixed(2)}`;
 
   const btnG = document.getElementById('btnGestionPresupuestos');
   if(btnG) btnG.style.display = canEdit() ? 'inline-block' : 'none';
@@ -136,20 +148,24 @@ function renderDashboard(){
   renderBudgets();
   mostrarAlertaGlobal();
 
+  // Top 3 categorías del mes (solo UYU)
   const porCat = {};
-  for(const r of delMes){
+  for(const r of delMesUYU){
     const cat = r.tipo || 'Sin categoría';
     porCat[cat] = (porCat[cat]||0) + Number(r.total||0);
   }
   const top = Object.entries(porCat).sort((a,b)=> b[1] - a[1]).slice(0,3);
   const el = document.getElementById('dashTopCats');
   if(!top.length){
-    el.innerHTML = '<div class="empty" style="padding:14px 0;">Sin datos este mes.</div>';
+    el.innerHTML = '<div class="empty" style="padding:14px 0;">Sin datos en pesos este mes.</div>';
   } else {
     const max = top[0][1] || 1;
     el.innerHTML = top.map(([cat, val])=> `
       <div class="dash-bar">
-        <div class="dash-bar-header"><span>${cat}</span><strong>$ ${val.toFixed(2)}</strong></div>
+        <div class="dash-bar-header">
+          <span>${cat}</span>
+          <strong>$ ${val.toFixed(2)}</strong>
+        </div>
         <div class="dash-bar-track">
           <div class="dash-bar-fill" style="width:${(val/max*100).toFixed(1)}%"></div>
         </div>
@@ -157,19 +173,24 @@ function renderDashboard(){
     `).join('');
   }
 
+  // Últimos 5 movimientos
   const ultimos = [...records]
     .sort((a,b)=> (b.creado||'').localeCompare(a.creado||''))
     .slice(0,5);
   const tbody = document.getElementById('dashTbody');
   const empty = document.getElementById('dashEmpty');
   tbody.innerHTML = '';
-  if(!ultimos.length){ empty.style.display = 'block'; return; }
+  if(!ultimos.length){
+    empty.style.display = 'block';
+    return;
+  }
   empty.style.display = 'none';
   for(const r of ultimos){
     const tr = document.createElement('tr');
+    const sym = (r.moneda === 'USD') ? 'US$' : '$';
     tr.innerHTML = `<td>${r.fecha||'-'}</td><td>${r.local||'-'}</td>
       <td>${r.tipo||'-'}</td>
-      <td class="num">${Number(r.total||0).toFixed(2)}</td>`;
+      <td class="num">${sym} ${Number(r.total||0).toFixed(2)}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -180,24 +201,6 @@ function renderCharts(filtered){
   const panel = document.getElementById('panelResumen');
   if(!panel || panel.style.display === 'none') return;
 
-  const porMes = {};
-  for(const r of filtered){
-    const mes = (r.fecha||'').slice(0,7) || 'Sin fecha';
-    if(!porMes[mes]) porMes[mes] = 0;
-    porMes[mes] += Number(r.total||0);
-  }
-  const mesesLabels = Object.keys(porMes).sort();
-  const mesesValues = mesesLabels.map(m => Number(porMes[m].toFixed(2)));
-
-  const porCat = {};
-  for(const r of filtered){
-    const cat = r.tipo || 'Sin categoría';
-    if(!porCat[cat]) porCat[cat] = 0;
-    porCat[cat] += Number(r.total||0);
-  }
-  const catLabels = Object.keys(porCat).sort((a,b)=> porCat[b] - porCat[a]);
-  const catValues = catLabels.map(c => Number(porCat[c].toFixed(2)));
-
   const palette = [
     'rgba(110, 31, 43, 0.85)',
     'rgba(168, 56, 42, 0.85)',
@@ -207,60 +210,96 @@ function renderCharts(filtered){
     'rgba(150, 90, 100, 0.85)'
   ];
 
-  if(chartMeses) chartMeses.destroy();
-  chartMeses = new Chart(document.getElementById('chartMeses'), {
-    type: 'bar',
-    data: {
-      labels: mesesLabels,
-      datasets: [{
-        label: 'Total por mes',
-        data: mesesValues,
-        backgroundColor: 'rgba(110, 31, 43, 0.75)',
-        borderColor: 'rgba(110, 31, 43, 1)',
-        borderWidth: 1,
-        borderRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        title: { display: true, text: 'Total por mes', font: { size: 14, weight: '600' } },
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `$ ${Number(ctx.raw).toFixed(2)}` } }
-      },
-      scales: { y: { beginAtZero: true, ticks: { callback: v => '$ ' + v } } }
-    }
-  });
+  const filtUYU = filtered.filter(r => (r.moneda || 'UYU') === 'UYU');
+  const filtUSD = filtered.filter(r => r.moneda === 'USD');
 
-  if(chartCategorias) chartCategorias.destroy();
-  chartCategorias = new Chart(document.getElementById('chartCategorias'), {
-    type: 'doughnut',
-    data: {
-      labels: catLabels,
-      datasets: [{
-        data: catValues,
-        backgroundColor: catLabels.map((_, i) => palette[i % palette.length]),
-        borderColor: '#ffffff',
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        title: { display: true, text: 'Distribución por categoría', font: { size: 14, weight: '600' } },
-        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 12 } } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const total = ctx.dataset.data.reduce((s,v)=> s + v, 0);
-              const pct = total ? (ctx.raw / total * 100).toFixed(1) : 0;
-              return `${ctx.label}: $ ${Number(ctx.raw).toFixed(2)} (${pct}%)`;
+  // --- Gráfico de barras por mes ---
+  function graficoMeses(items, canvasId, chartVar, titulo){
+    const porMes = {};
+    for(const r of items){
+      const mes = (r.fecha||'').slice(0,7) || 'Sin fecha';
+      porMes[mes] = (porMes[mes]||0) + Number(r.total||0);
+    }
+    const labels = Object.keys(porMes).sort();
+    const values = labels.map(m => Number(porMes[m].toFixed(2)));
+
+    if(chartVar) chartVar.destroy();
+    const ctx = document.getElementById(canvasId);
+    if(!ctx) return null;
+
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: titulo,
+          data: values,
+          backgroundColor: 'rgba(110, 31, 43, 0.75)',
+          borderColor: 'rgba(110, 31, 43, 1)',
+          borderWidth: 1,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: titulo, font: { size: 14, weight: '600' } },
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `$ ${Number(ctx.raw).toFixed(2)}` } }
+        },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => '$ ' + v } } }
+      }
+    });
+  }
+
+  // --- Gráfico de torta por categoría ---
+  function graficoCategorias(items, canvasId, chartVar, titulo){
+    const porCat = {};
+    for(const r of items){
+      const cat = r.tipo || 'Sin categoría';
+      porCat[cat] = (porCat[cat]||0) + Number(r.total||0);
+    }
+    const labels = Object.keys(porCat).sort((a,b)=> porCat[b] - porCat[a]);
+    const values = labels.map(c => Number(porCat[c].toFixed(2)));
+
+    if(chartVar) chartVar.destroy();
+    const ctx = document.getElementById(canvasId);
+    if(!ctx) return null;
+
+    return new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+          borderColor: '#ffffff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: titulo, font: { size: 14, weight: '600' } },
+          legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { size: 12 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((s,v)=> s + v, 0);
+                const pct = total ? (ctx.raw / total * 100).toFixed(1) : 0;
+                return `${ctx.label}: $ ${Number(ctx.raw).toFixed(2)} (${pct}%)`;
+              }
             }
           }
         }
       }
-    }
-  });
+    });
+  }
+
+  chartMesesUYU = graficoMeses(filtUYU, 'chartMesesUYU', chartMesesUYU, 'Total por mes (UYU)');
+  chartMesesUSD = graficoMeses(filtUSD, 'chartMesesUSD', chartMesesUSD, 'Total por mes (USD)');
+  chartCategoriasUYU = graficoCategorias(filtUYU, 'chartCategoriasUYU', chartCategoriasUYU, 'Categorías (UYU)');
+  chartCategoriasUSD = graficoCategorias(filtUSD, 'chartCategoriasUSD', chartCategoriasUSD, 'Categorías (USD)');
 }

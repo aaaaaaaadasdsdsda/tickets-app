@@ -2,38 +2,94 @@
 //  records.js — tabla, filtros, formularios, adjuntos
 // ==========================================================
 
+function symbolFor(moneda){
+  return (moneda === 'USD') ? 'US$' : '$';
+}
+
 function renderTotals(filtered){
-  const t = computeTotals(filtered);
   const el = document.getElementById('totalsBar');
+
+  const tUYU = filtered
+    .filter(r => (r.moneda || 'UYU') === 'UYU')
+    .reduce((acc,r)=>{
+      acc.total += Number(r.total||0);
+      acc.iva   += Number(r.iva||0);
+      acc.cant  += 1;
+      return acc;
+    }, { total:0, iva:0, cant:0 });
+
+  const tUSD = filtered
+    .filter(r => r.moneda === 'USD')
+    .reduce((acc,r)=>{
+      acc.total += Number(r.total||0);
+      acc.iva   += Number(r.iva||0);
+      acc.cant  += 1;
+      return acc;
+    }, { total:0, iva:0, cant:0 });
+
   el.innerHTML = `
-    <div class="total-item"><span>Registros</span><strong>${t.cant}</strong></div>
-    <div class="total-item"><span>Total</span><strong>$ ${t.total.toFixed(2)}</strong></div>
-    <div class="total-item"><span>IVA</span><strong>$ ${t.iva.toFixed(2)}</strong></div>
+    <div class="total-item"><span>Registros</span><strong>${tUYU.cant + tUSD.cant}</strong></div>
+    <div class="total-item"><span>Total UYU</span><strong>$ ${tUYU.total.toFixed(2)}</strong></div>
+    <div class="total-item"><span>Total USD</span><strong>US$ ${tUSD.total.toFixed(2)}</strong></div>
+    <div class="total-item"><span>IVA UYU</span><strong>$ ${tUYU.iva.toFixed(2)}</strong></div>
+    <div class="total-item"><span>IVA USD</span><strong>US$ ${tUSD.iva.toFixed(2)}</strong></div>
   `;
 }
 
 function renderMonthly(filtered){
-  const tbody = document.getElementById('tbodyResumen');
-  const empty = document.getElementById('emptyResumen');
-  tbody.innerHTML = '';
-  const grupos = {};
-  for(const r of filtered){
-    const mes = (r.fecha||'').slice(0,7) || 'Sin fecha';
-    if(!grupos[mes]) grupos[mes] = { cant:0, total:0, iva:0 };
-    grupos[mes].cant  += 1;
-    grupos[mes].total += Number(r.total||0);
-    grupos[mes].iva   += Number(r.iva||0);
+  const tbodyUYU = document.getElementById('tbodyResumenUYU');
+  const tbodyUSD = document.getElementById('tbodyResumenUSD');
+  const emptyUYU = document.getElementById('emptyResumenUYU');
+  const emptyUSD = document.getElementById('emptyResumenUSD');
+  if(!tbodyUYU || !tbodyUSD) return;
+
+  tbodyUYU.innerHTML = '';
+  tbodyUSD.innerHTML = '';
+
+  function agrupar(items){
+    const grupos = {};
+    for(const r of items){
+      const mes = (r.fecha||'').slice(0,7) || 'Sin fecha';
+      if(!grupos[mes]) grupos[mes] = { cant:0, total:0, iva:0 };
+      grupos[mes].cant  += 1;
+      grupos[mes].total += Number(r.total||0);
+      grupos[mes].iva   += Number(r.iva||0);
+    }
+    return grupos;
   }
-  const meses = Object.keys(grupos).sort().reverse();
-  if(!meses.length){ empty.style.display='block'; return; }
-  empty.style.display='none';
-  for(const mes of meses){
-    const g = grupos[mes];
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${mes}</td><td class="num">${g.cant}</td>
-      <td class="num">${g.total.toFixed(2)}</td>
-      <td class="num">${g.iva.toFixed(2)}</td>`;
-    tbody.appendChild(tr);
+
+  const gUYU = agrupar(filtered.filter(r => (r.moneda || 'UYU') === 'UYU'));
+  const gUSD = agrupar(filtered.filter(r => r.moneda === 'USD'));
+
+  const mesesUYU = Object.keys(gUYU).sort().reverse();
+  const mesesUSD = Object.keys(gUSD).sort().reverse();
+
+  if(!mesesUYU.length){
+    emptyUYU.style.display = 'block';
+  } else {
+    emptyUYU.style.display = 'none';
+    for(const mes of mesesUYU){
+      const g = gUYU[mes];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${mes}</td><td class="num">${g.cant}</td>
+        <td class="num">${g.total.toFixed(2)}</td>
+        <td class="num">${g.iva.toFixed(2)}</td>`;
+      tbodyUYU.appendChild(tr);
+    }
+  }
+
+  if(!mesesUSD.length){
+    emptyUSD.style.display = 'block';
+  } else {
+    emptyUSD.style.display = 'none';
+    for(const mes of mesesUSD){
+      const g = gUSD[mes];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${mes}</td><td class="num">${g.cant}</td>
+        <td class="num">${g.total.toFixed(2)}</td>
+        <td class="num">${g.iva.toFixed(2)}</td>`;
+      tbodyUSD.appendChild(tr);
+    }
   }
 }
 
@@ -96,12 +152,12 @@ function renderTableRows(){
     }
     tr.appendChild(tdDetalle);
 
-        const tdTotal = document.createElement('td');
+    const tdTotal = document.createElement('td');
     tdTotal.className = 'num';
-    tdTotal.textContent = Number(r.total||0).toFixed(2);
+    tdTotal.textContent = `${symbolFor(r.moneda)} ${Number(r.total||0).toFixed(2)}`;
     tr.appendChild(tdTotal);
 
-    // Columna Condición (entre Total e IVA)
+    // Columna Condición
     const tdCond = document.createElement('td');
     if(r.condicion === 'contado'){
       const badge = document.createElement('span');
@@ -120,10 +176,11 @@ function renderTableRows(){
 
     const tdIva = document.createElement('td');
     tdIva.className = 'num';
-    tdIva.textContent = (r.iva != null && r.iva !== '') ? Number(r.iva).toFixed(2) : '-';
+    tdIva.textContent = (r.iva != null && r.iva !== '')
+      ? `${symbolFor(r.moneda)} ${Number(r.iva).toFixed(2)}`
+      : '-';
     tr.appendChild(tdIva);
 
-    // Columna Adjunto
     if(r.attachment){
       const tdAdj = document.createElement('td');
       const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
@@ -140,7 +197,6 @@ function renderTableRows(){
       tr.appendChild(document.createElement('td'));
     }
 
-    // Columna Eliminar
     const tdDel = document.createElement('td');
     if(canEdit()){
       const btnDel = document.createElement('button');
@@ -243,6 +299,7 @@ function clearForm(){
   document.getElementById('fDetalle').value='';
   document.getElementById('fTotal').value='';
   document.getElementById('fIva').value='';
+  document.getElementById('fMoneda').value = 'UYU';
   document.getElementById('fCondicion').value='';
   document.getElementById('fRutEmisor').value='';
   document.getElementById('fRutComprador').value='';
@@ -278,6 +335,7 @@ async function handleSave(){
 
   const ivaRaw = document.getElementById('fIva').value;
   const condicionRaw = document.getElementById('fCondicion').value;
+  const monedaRaw = document.getElementById('fMoneda').value || 'UYU';
   const notasRaw = document.getElementById('fNotas') ? document.getElementById('fNotas').value.trim() : '';
   const rec = {
     local: document.getElementById('fLocal').value.trim(),
@@ -286,6 +344,7 @@ async function handleSave(){
     detalle: document.getElementById('fDetalle').value.trim(),
     total: parseFloat(document.getElementById('fTotal').value),
     iva: ivaRaw==='' ? null : parseFloat(ivaRaw),
+    moneda: monedaRaw,
     condicion: condicionRaw === '' ? null : condicionRaw,
     rut_emisor: document.getElementById('fRutEmisor').value.trim() || null,
     rut_comprador: document.getElementById('fRutComprador').value.trim() || null,
@@ -335,6 +394,7 @@ function loadIntoEdit(id){
   document.getElementById('eDetalle').value = r.detalle || '';
   document.getElementById('eTotal').value = r.total ?? '';
   document.getElementById('eIva').value = r.iva ?? '';
+  document.getElementById('eMoneda').value = r.moneda || 'UYU';
   document.getElementById('eCondicion').value = r.condicion || '';
   document.getElementById('eRutEmisor').value = r.rut_emisor || '';
   document.getElementById('eRutComprador').value = r.rut_comprador || '';
@@ -368,6 +428,7 @@ async function handleSaveEdit(){
   if(!validateFields('e','editErrors',{local:'ewLocal',fecha:'ewFecha',detalle:'ewDetalle',total:'ewTotal'})) return;
   const ivaRaw = document.getElementById('eIva').value;
   const condicionRaw = document.getElementById('eCondicion').value;
+  const monedaRaw = document.getElementById('eMoneda').value || 'UYU';
   const notasRaw = document.getElementById('eNotas') ? document.getElementById('eNotas').value.trim() : '';
   const data = {
     local: document.getElementById('eLocal').value.trim(),
@@ -376,6 +437,7 @@ async function handleSaveEdit(){
     detalle: document.getElementById('eDetalle').value.trim(),
     total: parseFloat(document.getElementById('eTotal').value),
     iva: ivaRaw==='' ? null : parseFloat(ivaRaw),
+    moneda: monedaRaw,
     condicion: condicionRaw === '' ? null : condicionRaw,
     rut_emisor: document.getElementById('eRutEmisor').value.trim() || null,
     rut_comprador: document.getElementById('eRutComprador').value.trim() || null,
@@ -408,7 +470,7 @@ function openDeleteConfirm(record){
   document.getElementById('delLocal').textContent   = record.local || '-';
   document.getElementById('delTipo').textContent    = record.tipo || '-';
   document.getElementById('delDetalle').textContent = record.detalle || '-';
-  document.getElementById('delTotal').textContent   = `$ ${Number(record.total||0).toFixed(2)}`;
+  document.getElementById('delTotal').textContent   = `${symbolFor(record.moneda)} ${Number(record.total||0).toFixed(2)}`;
   const modal = document.getElementById('modalDelete');
   modal.dataset.recordId = record.id;
   modal.style.display = 'flex';

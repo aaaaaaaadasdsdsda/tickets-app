@@ -41,6 +41,7 @@ class RecordBase(BaseModel):
     detalle: str
     total: float
     iva: Optional[float] = None
+    moneda: Optional[str] = 'UYU'
     condicion: Optional[str] = None
     rut_emisor: Optional[str] = None
     rut_comprador: Optional[str] = None
@@ -59,6 +60,7 @@ class RecordPatch(BaseModel):
     detalle: Optional[str] = None
     total: Optional[float] = None
     iva: Optional[float] = None
+    moneda: Optional[str] = None
     condicion: Optional[str] = None
     rut_emisor: Optional[str] = None
     rut_comprador: Optional[str] = None

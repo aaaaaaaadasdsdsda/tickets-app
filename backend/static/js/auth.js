@@ -17,8 +17,10 @@ function doLogout(){
   alertasMostradas.clear();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
-  if(chartMeses){ chartMeses.destroy(); chartMeses = null; }
-  if(chartCategorias){ chartCategorias.destroy(); chartCategorias = null; }
+  if(chartMesesUYU){ chartMesesUYU.destroy(); chartMesesUYU = null; }
+  if(chartMesesUSD){ chartMesesUSD.destroy(); chartMesesUSD = null; }
+  if(chartCategoriasUYU){ chartCategoriasUYU.destroy(); chartCategoriasUYU = null; }
+  if(chartCategoriasUSD){ chartCategoriasUSD.destroy(); chartCategoriasUSD = null; }
   document.getElementById('app').style.display = 'none';
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('loginUser').value = '';

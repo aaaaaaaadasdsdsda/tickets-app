@@ -5,6 +5,7 @@ import shutil
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from database import Base, engine, get_db
@@ -48,6 +49,7 @@ def record_to_dict(r):
     return {
         "fecha": r.fecha, "local": r.local, "tipo": r.tipo,
         "detalle": r.detalle, "total": r.total, "iva": r.iva,
+        "moneda": r.moneda,
         "condicion": r.condicion,
         "rut_emisor": r.rut_emisor,
         "rut_comprador": r.rut_comprador,
@@ -135,7 +137,10 @@ def list_records(db: Session = Depends(get_db), user: User = Depends(auth.get_cu
 
 @app.post("/records", response_model=RecordOut)
 def create_record(data: RecordCreate, db: Session = Depends(get_db), user: User = Depends(auth.get_current_user)):
-    rec = Record(**data.model_dump(), creado_por=user.id)
+    payload = data.model_dump()
+    if not payload.get("moneda"):
+        payload["moneda"] = "UYU"
+    rec = Record(**payload, creado_por=user.id)
     db.add(rec); db.commit(); db.refresh(rec)
     log_change(db, user, "creado", rec.id, despues=record_to_dict(rec))
     db.commit()
@@ -173,7 +178,6 @@ def delete_record(record_id: int, db: Session = Depends(get_db), user: User = De
     rec = db.query(Record).filter(Record.id == record_id).first()
     if not rec:
         raise HTTPException(404, "No encontrado")
-    # Borrar adjunto
     if rec.attachment:
         p = os.path.join(UPLOAD_DIR, rec.attachment)
         if os.path.exists(p):
@@ -188,7 +192,6 @@ def delete_record(record_id: int, db: Session = Depends(get_db), user: User = De
 # ---------- ADJUNTOS (Cloudflare R2 con fallback a disco) ----------
 import boto3
 from botocore.client import Config
-from fastapi.responses import RedirectResponse, FileResponse
 
 R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
 R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY")
@@ -228,14 +231,12 @@ async def upload_attachment(record_id: int, file: UploadFile = File(...), db: Se
     safe_name = f"rec_{record_id}_{int(time.time())}{ext}"
 
     if s3_client:
-        # Borrar el anterior si existe en R2
         if rec.attachment:
             try:
                 s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=rec.attachment)
             except Exception as e:
                 print(f"No se pudo borrar adjunto viejo de R2: {e}")
 
-        # Subir el nuevo a R2
         try:
             s3_client.upload_fileobj(
                 file.file,
@@ -246,7 +247,6 @@ async def upload_attachment(record_id: int, file: UploadFile = File(...), db: Se
         except Exception as e:
             raise HTTPException(500, f"Error al subir a R2: {str(e)}")
     else:
-        # Fallback a disco local
         if rec.attachment:
             old = os.path.join(UPLOAD_DIR, rec.attachment)
             if os.path.exists(old):
@@ -284,7 +284,6 @@ def delete_attachment(record_id: int, db: Session = Depends(get_db), user: User 
 
 @app.get("/uploads/{filename}")
 def get_upload(filename: str):
-    """Redirige a R2 si está configurado, o sirve el archivo local."""
     if s3_client:
         try:
             url = s3_client.generate_presigned_url(

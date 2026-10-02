@@ -19,6 +19,7 @@ class Record(Base):
     detalle = Column(String, nullable=False)
     total = Column(Float, nullable=False)
     iva = Column(Float, nullable=True)
+    moneda = Column(String, nullable=True, default='UYU')
     condicion = Column(String, nullable=True)
     rut_emisor = Column(String, nullable=True)
     rut_comprador = Column(String, nullable=True)

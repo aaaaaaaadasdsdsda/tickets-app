@@ -1,4 +1,7 @@
-// Estado global compartido
+// ==========================================================
+//  state.js — estado global compartido
+// ==========================================================
+
 const TOKEN_KEY = 'tickets_token_v1';
 const USER_KEY  = 'tickets_user_v1';
 const THEME_KEY = 'tickets_theme_v1';
@@ -12,12 +15,15 @@ let budgets = [];
 let pendingFile = null;
 let alertasMostradas = new Set();
 
-let chartMeses = null;
-let chartCategorias = null;
+// Gráficos (4, uno por moneda y tipo)
+let chartMesesUYU = null;
+let chartMesesUSD = null;
+let chartCategoriasUYU = null;
+let chartCategoriasUSD = null;
 
 const filtros = { mes:'', desde:'', hasta:'', tipo:'', texto:'' };
 
-// Utilidades generales
+// ---------- Utilidades generales ----------
 function canEdit(){
   return currentUser && (currentUser.role === 'programador' || currentUser.role === 'administrador');
 }

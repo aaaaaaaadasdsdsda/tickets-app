@@ -71,9 +71,10 @@
     </div>
 
     <div class="dash-cards">
-      <div class="dash-card"><span>Total del mes</span><strong id="dashTotalMes">$ 0.00</strong></div>
+      <div class="dash-card"><span>Total UYU</span><strong id="dashTotalUYU">$ 0.00</strong></div>
+      <div class="dash-card"><span>Total USD</span><strong id="dashTotalUSD">US$ 0.00</strong></div>
       <div class="dash-card"><span>Registros</span><strong id="dashCantMes">0</strong></div>
-      <div class="dash-card"><span>Promedio</span><strong id="dashPromedio">$ 0.00</strong></div>
+      <div class="dash-card"><span>Promedio (UYU)</span><strong id="dashPromedio">$ 0.00</strong></div>
     </div>
 
     <div class="export-row" style="margin-top:22px;">
@@ -129,8 +130,14 @@
     </div>
     <div class="field" id="wDetalle"><label>Detalle *</label><input id="fDetalle" placeholder="Ej: Salario, Juan portero"></div>
     <div class="row2">
-      <div class="field" id="wTotal"><label>Total ($) *</label><input id="fTotal" type="number" step="0.01" placeholder="0.00"></div>
-      <div class="field"><label>IVA ($) — opcional</label><input id="fIva" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field" id="wTotal"><label>Total *</label><input id="fTotal" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>IVA — opcional</label><input id="fIva" type="number" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="field"><label>Moneda</label>
+      <select id="fMoneda">
+        <option value="UYU">Pesos uruguayos ($)</option>
+        <option value="USD">Dólares (US$)</option>
+      </select>
     </div>
     <div class="field"><label>Condición</label>
       <select id="fCondicion">
@@ -193,8 +200,14 @@
       </div>
       <div class="field" id="ewDetalle"><label>Detalle *</label><input id="eDetalle"></div>
       <div class="row2">
-        <div class="field" id="ewTotal"><label>Total ($) *</label><input id="eTotal" type="number" step="0.01"></div>
-        <div class="field"><label>IVA ($) — opcional</label><input id="eIva" type="number" step="0.01"></div>
+        <div class="field" id="ewTotal"><label>Total *</label><input id="eTotal" type="number" step="0.01"></div>
+        <div class="field"><label>IVA — opcional</label><input id="eIva" type="number" step="0.01"></div>
+      </div>
+      <div class="field"><label>Moneda</label>
+        <select id="eMoneda">
+          <option value="UYU">Pesos uruguayos ($)</option>
+          <option value="USD">Dólares (US$)</option>
+        </select>
       </div>
       <div class="field"><label>Condición</label>
         <select id="eCondicion">
@@ -242,15 +255,24 @@
     </div>
     <p class="edit-hint">Los gráficos y totales reflejan los filtros aplicados en la sección de "Registros guardados".</p>
 
-    <div class="chart-container"><canvas id="chartMeses"></canvas></div>
-    <div class="chart-container"><canvas id="chartCategorias"></canvas></div>
+    <div class="chart-container"><canvas id="chartMesesUYU"></canvas></div>
+    <div class="chart-container"><canvas id="chartMesesUSD"></canvas></div>
+    <div class="chart-container"><canvas id="chartCategoriasUYU"></canvas></div>
+    <div class="chart-container"><canvas id="chartCategoriasUSD"></canvas></div>
 
-    <h3 class="section-title">Detalle por mes</h3>
+    <h3 class="section-title">Detalle por mes (UYU)</h3>
     <div class="wrap-table"><table>
       <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
-      <tbody id="tbodyResumen"></tbody>
+      <tbody id="tbodyResumenUYU"></tbody>
     </table></div>
-    <div class="empty" id="emptyResumen">Sin datos para mostrar.</div>
+    <div class="empty" id="emptyResumenUYU">Sin datos en pesos.</div>
+
+    <h3 class="section-title">Detalle por mes (USD)</h3>
+    <div class="wrap-table"><table>
+      <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
+      <tbody id="tbodyResumenUSD"></tbody>
+    </table></div>
+    <div class="empty" id="emptyResumenUSD">Sin datos en dólares.</div>
   </div>
 
   <div class="panel" id="panelRegistros" style="display:none;">

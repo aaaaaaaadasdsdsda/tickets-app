@@ -2,6 +2,7 @@
 //  ocr.js — PDF.js + Tesseract + parseo de tickets
 // ==========================================================
 
+// ---------- PDF.js: extraer texto de un PDF ----------
 async function extractPdfText(file){
   if(typeof pdfjsLib === 'undefined') throw new Error('PDF.js no está cargado');
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -31,6 +32,7 @@ async function extractPdfText(file){
   return texto;
 }
 
+// ---------- Parseo de números en formato uruguayo ----------
 function parseUyNumber(raw){
   if(raw == null) return null;
   raw = String(raw).trim().replace(/\s/g, '');
@@ -53,6 +55,7 @@ function lastAmountInLine(line){
   return parseUyNumber(nums[nums.length - 1]);
 }
 
+// ---------- Local desde el nombre del archivo ----------
 function localFromFilename(filename){
   if(!filename) return '';
   let s = filename.replace(/\.[^.]+$/, '');
@@ -62,6 +65,7 @@ function localFromFilename(filename){
   return s.trim();
 }
 
+// ---------- Parseo principal ----------
 function parseAndFill(text, filename = ''){
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const oneLine = lines.join(' ');
@@ -120,7 +124,6 @@ function parseAndFill(text, filename = ''){
 
   // ===== LOCAL =====
   let local = localFromFilename(filename);
-
   if(!local){
     const HEADER_WORDS = /^(ruc|fecha|moneda|tipo\s|cambio|descripci[oó]n|producto|servicio|cantidad|cant\.?|p\.?\s*unit|precio|importe|total|subtotal|neto|iva|monto|descuento|recargo|adenda|referencia|serie|n[º°]|c[oó]digo|constancia|cae|res\.|original|cr[eé]dito|contado|efactura|nota\s*de\s*cr[eé]dito|recibo|resguardo|cobranza|tot\.?|gravado|exento|min\.?|otros|productor|esta|si\s|el\s|la\s|los\s|las\s|av\s|direcci[oó]n)/i;
     const BUYER_HINTS = /machiavello|curbelo|ver[oó]nica|leticia|zelmar|michelini|151025410017/i;
@@ -142,20 +145,17 @@ function parseAndFill(text, filename = ''){
     }
   }
 
-  // ===== CONDICIÓN =====
+  // ===== CONDICIÓN (contado / crédito) =====
   let condicion = '';
   const cabecera = lines.slice(0, 8).join(' ');
   if(/\bcontado\b/i.test(cabecera)) condicion = 'contado';
   else if(/\bcr[eé]dito\b/i.test(cabecera)) condicion = 'credito';
 
   // ===== RUTs =====
-  // RUT comprador: línea explícita "RUC COMPRADOR xxxxx"
   let rutComprador = '';
   const mRutComp = text.match(/RUC\s*COMPRADOR\s*:?\s*(\d{11,12})/i);
   if(mRutComp) rutComprador = mRutComp[1];
 
-  // RUT emisor: primer número de 11-12 dígitos en las primeras 5 líneas
-  // (excluyendo el comprador si ya lo detectamos)
   let rutEmisor = '';
   for(const line of lines.slice(0, 5)){
     const m = line.match(/\b(\d{11,12})\b/);
@@ -165,21 +165,35 @@ function parseAndFill(text, filename = ''){
     }
   }
 
+  // ===== MONEDA =====
+  let moneda = 'UYU';
+  const mMoneda = text.match(/Moneda\s*:?\s*(UYU|USD|EUR|ARS|BRL)/i);
+  if(mMoneda){
+    const m = mMoneda[1].toUpperCase();
+    if(m === 'USD') moneda = 'USD';
+    else moneda = 'UYU';
+  }
+
   // ===== Rellenar formulario =====
   document.getElementById('fLocal').value     = local;
   document.getElementById('fFecha').value     = fecha;
   document.getElementById('fTotal').value     = total ?? '';
   document.getElementById('fIva').value       = iva ?? '';
+
   const selCond = document.getElementById('fCondicion');
   if(selCond) selCond.value = condicion;
+
+  const selMon = document.getElementById('fMoneda');
+  if(selMon) selMon.value = moneda;
+
   const inpRutEm = document.getElementById('fRutEmisor');
   if(inpRutEm) inpRutEm.value = rutEmisor;
+
   const inpRutComp = document.getElementById('fRutComprador');
   if(inpRutComp) inpRutComp.value = rutComprador;
-  const fNotas = document.getElementById('fNotas');
-  if(fNotas) fNotas.value = '';
 }
 
+// ---------- Handler único de subida (PDF o imagen) ----------
 async function handleFileUpload(){
   const fileInput = document.getElementById('fileInput');
   const dropzone  = document.getElementById('dropzone');
