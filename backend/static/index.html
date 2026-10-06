@@ -96,14 +96,29 @@
   </div>
 
   <div class="panel" id="panelPhoto" style="display:none;">
-    <div class="dropzone" id="dropzone">📄<br><strong>Subí un ticket o factura</strong><br><span>PDF, imagen o foto desde tu celular</span></div>
-    <input type="file" id="fileInput" accept="image/*,application/pdf">
+    <div class="dropzone" id="dropzone">
+      📄<br>
+      <strong>Subí un ticket o factura</strong>
+      <span>PDF o hasta 3 fotos (para facturas de varias páginas)</span>
+    </div>
+    <input type="file" id="fileInput" accept="image/*,application/pdf" multiple>
     <div class="ocr-status" id="ocrStatus"></div>
 
-    <div id="pendingPreview" style="display:none;margin-top:14px;">
-      <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 8px;">Archivo cargado (se va a adjuntar al registro):</p>
-      <img id="pendingImg" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--rule);display:none;">
-      <p id="pendingName" style="font-size:.78rem;color:var(--ink-soft);margin:6px 0 0;"></p>
+    <div id="pendingPreview" style="display:none;margin-top:16px;">
+      <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 10px;">
+        Archivo(s) cargado(s) — se van a adjuntar al registro:
+      </p>
+      <div id="pendingImagesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
+      <p id="pendingName" style="font-size:.78rem;color:var(--ink-soft);margin:10px 0 0;"></p>
+
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+        <button type="button" class="secondary" id="btnExportarPdfFotos" style="display:none;flex:1;">
+          📄 Exportar PDF
+        </button>
+        <button type="button" class="danger" id="btnQuitarFotos" style="flex:1;">
+          Quitar
+        </button>
+      </div>
     </div>
   </div>
 
@@ -169,10 +184,10 @@
     </div>
     <div id="fAdjuntoBox" style="display:none;">
       <div id="fAdjuntoPreview" style="margin-bottom:10px;"></div>
-      <input type="file" id="fAdjuntoInput" accept="image/*,application/pdf" style="display:none;">
+      <input type="file" id="fAdjuntoInput" accept="image/*,application/pdf" multiple style="display:none;">
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button type="button" class="secondary" id="btnFAdjuntar" style="flex:1;">📎 Elegir archivo</button>
-        <button type="button" class="danger" id="btnFQuitarAdjunto" style="flex:1;display:none;">Quitar archivo</button>
+        <button type="button" class="secondary" id="btnFAdjuntar" style="flex:1;">📎 Elegir archivo(s)</button>
+        <button type="button" class="danger" id="btnFQuitarAdjunto" style="flex:1;display:none;">Quitar archivo(s)</button>
       </div>
     </div>
 
@@ -254,32 +269,66 @@
 
   <div class="panel" id="panelResumen" style="display:none;">
     <div class="export-row">
-      <h2>Resumen mensual</h2>
+      <h2>Resumen</h2>
       <div class="export-actions">
         <button id="btnExportPdf">Exportar PDF</button>
         <button id="btnExportResumen">Exportar Excel</button>
       </div>
     </div>
-    <p class="edit-hint">Los gráficos y totales reflejan los filtros aplicados en la sección de "Registros guardados".</p>
 
-    <div class="chart-container"><canvas id="chartMesesUYU"></canvas></div>
-    <div class="chart-container"><canvas id="chartMesesUSD"></canvas></div>
-    <div class="chart-container"><canvas id="chartCategoriasUYU"></canvas></div>
-    <div class="chart-container"><canvas id="chartCategoriasUSD"></canvas></div>
+    <div class="subtabs">
+      <button class="subtab active" id="subtabMensual">Mensual</button>
+      <button class="subtab" id="subtabAnual">Anual</button>
+    </div>
 
-    <h3 class="section-title">Detalle por mes (UYU)</h3>
-    <div class="wrap-table"><table>
-      <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
-      <tbody id="tbodyResumenUYU"></tbody>
-    </table></div>
-    <div class="empty" id="emptyResumenUYU">Sin datos en pesos.</div>
+    <div id="subPanelMensual">
+      <p class="edit-hint">Los gráficos y totales reflejan los filtros aplicados en la sección de "Registros guardados".</p>
 
-    <h3 class="section-title">Detalle por mes (USD)</h3>
-    <div class="wrap-table"><table>
-      <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
-      <tbody id="tbodyResumenUSD"></tbody>
-    </table></div>
-    <div class="empty" id="emptyResumenUSD">Sin datos en dólares.</div>
+      <div class="chart-container"><canvas id="chartMesesUYU"></canvas></div>
+      <div class="chart-container"><canvas id="chartMesesUSD"></canvas></div>
+      <div class="chart-container"><canvas id="chartCategoriasUYU"></canvas></div>
+      <div class="chart-container"><canvas id="chartCategoriasUSD"></canvas></div>
+
+      <h3 class="section-title">Detalle por mes (UYU)</h3>
+      <div class="wrap-table"><table>
+        <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
+        <tbody id="tbodyResumenUYU"></tbody>
+      </table></div>
+      <div class="empty" id="emptyResumenUYU">Sin datos en pesos.</div>
+
+      <h3 class="section-title">Detalle por mes (USD)</h3>
+      <div class="wrap-table"><table>
+        <thead><tr><th>Mes</th><th class="num">Cant.</th><th class="num">Total</th><th class="num">IVA</th></tr></thead>
+        <tbody id="tbodyResumenUSD"></tbody>
+      </table></div>
+      <div class="empty" id="emptyResumenUSD">Sin datos en dólares.</div>
+    </div>
+
+    <div id="subPanelAnual" style="display:none;">
+      <p class="edit-hint">El rango se ajusta automáticamente: arranca desde la factura más antigua registrada.</p>
+
+      <div class="field" style="max-width:200px;margin-bottom:18px;">
+        <label>Año</label>
+        <select id="filtroAñoAnual"><option value="">Todos los años</option></select>
+      </div>
+
+      <div class="chart-container" style="height:340px;"><canvas id="chartAnualEvolucion"></canvas></div>
+      <div class="chart-container" style="height:360px;"><canvas id="chartAnualCategorias"></canvas></div>
+
+      <h3 class="section-title">Detalle por año</h3>
+      <div class="wrap-table"><table>
+        <thead><tr>
+          <th>Año</th>
+          <th class="num">Cant.</th>
+          <th class="num">Total UYU</th>
+          <th class="num">Total USD</th>
+          <th class="num">IVA UYU</th>
+          <th class="num">IVA USD</th>
+        </tr></thead>
+        <tbody id="tbodyResumenAnual"></tbody>
+      </table></div>
+      <div class="empty" id="emptyResumenAnual">Sin datos para mostrar.</div>
+    </div>
   </div>
 
   <div class="panel" id="panelRegistros" style="display:none;">

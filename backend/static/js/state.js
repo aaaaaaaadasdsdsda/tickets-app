@@ -12,21 +12,20 @@ let currentUser = null;
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let changelogs = [];
 let budgets = [];
-let pendingFile = null;
+let pendingFiles = [];  // hasta 3 fotos o 1 PDF
 let alertasMostradas = new Set();
 
-// Bandera para el modal de duplicados
 let guardarDuplicadoAprobado = false;
 
-// Gráficos (4, uno por moneda y tipo)
 let chartMesesUYU = null;
 let chartMesesUSD = null;
 let chartCategoriasUYU = null;
 let chartCategoriasUSD = null;
+let chartAnualEvolucion = null;
+let chartAnualCategorias = null;
 
-const filtros = { mes:'', desde:'', hasta:'', tipo:'', proveedor:'', texto:'' };
+const filtros = { mes:'', desde:'', hasta:'', tipo:'', proveedor:'', texto:'', anio:'' };
 
-// ---------- Utilidades generales ----------
 function canEdit(){
   return currentUser && (currentUser.role === 'programador' || currentUser.role === 'administrador');
 }
@@ -39,12 +38,13 @@ function mesLabel(yyyymm){
 }
 
 function isFilterActive(){
-  return !!(filtros.mes || filtros.desde || filtros.hasta || filtros.tipo || filtros.proveedor || filtros.texto);
+  return !!(filtros.mes || filtros.desde || filtros.hasta || filtros.tipo || filtros.proveedor || filtros.texto || filtros.anio);
 }
 
 function getFilteredRecords(){
   return [...records].filter(r => {
     if(filtros.mes && !(r.fecha||'').startsWith(filtros.mes)) return false;
+    if(filtros.anio && !(r.fecha||'').startsWith(filtros.anio)) return false;
     if(filtros.desde && (r.fecha||'') < filtros.desde) return false;
     if(filtros.hasta && (r.fecha||'') > filtros.hasta) return false;
     if(filtros.tipo && r.tipo !== filtros.tipo) return false;

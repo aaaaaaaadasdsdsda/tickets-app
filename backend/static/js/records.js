@@ -49,7 +49,7 @@ function renderTotals(filtered){
   `;
 }
 
-// ---------- Detalle por mes (UYU y USD) ----------
+// ---------- Detalle por mes ----------
 function renderMonthly(filtered){
   const tbodyUYU = document.getElementById('tbodyResumenUYU');
   const tbodyUSD = document.getElementById('tbodyResumenUSD');
@@ -122,6 +122,7 @@ function renderTableRows(){
   renderTotals(filtered);
   renderMonthly(filtered);
   renderCharts(filtered);
+  renderAnnual(filtered);
 
   const sorted = [...filtered].sort((a,b)=> (b.creado||'').localeCompare(a.creado||''));
   if(!sorted.length){
@@ -173,7 +174,6 @@ function renderTableRows(){
     tdTotal.textContent = `${symbolFor(r.moneda)} ${Number(r.total||0).toFixed(2)}`;
     tr.appendChild(tdTotal);
 
-    // Columna Condición
     const tdCond = document.createElement('td');
     if(r.condicion === 'contado'){
       const badge = document.createElement('span');
@@ -197,7 +197,6 @@ function renderTableRows(){
       : '-';
     tr.appendChild(tdIva);
 
-    // Adjunto
     if(r.attachment){
       const tdAdj = document.createElement('td');
       const esImagen = /\.(png|jpg|jpeg|webp|gif)$/i.test(r.attachment);
@@ -212,7 +211,6 @@ function renderTableRows(){
       tr.appendChild(document.createElement('td'));
     }
 
-    // Duplicar
     const tdDup = document.createElement('td');
     if(canEdit()){
       const btnDup = document.createElement('button');
@@ -224,7 +222,6 @@ function renderTableRows(){
     }
     tr.appendChild(tdDup);
 
-    // Eliminar
     const tdDel = document.createElement('td');
     if(canEdit()){
       const btnDel = document.createElement('button');
@@ -269,19 +266,23 @@ function clearRadioAdjuntar(){
 }
 
 function syncPendingPreview(){
+  renderPendingPreview();
   const box = document.getElementById('fAdjuntoBox');
   const preview = document.getElementById('fAdjuntoPreview');
   const btnQuitar = document.getElementById('btnFQuitarAdjunto');
   if(!box || !preview || !btnQuitar) return;
 
-  if(pendingFile){
+  if(pendingFiles.length){
     setRadioAdjuntar('si');
     box.style.display = 'block';
-    const esImagen = pendingFile.type.startsWith('image/');
+    const esPdf = pendingFiles[0].type === 'application/pdf';
+    const texto = pendingFiles.length === 1
+      ? pendingFiles[0].name
+      : `${pendingFiles.length} fotos`;
     preview.innerHTML = `
       <div class="attachment-thumb">
-        <span class="icon">${esImagen ? '🖼️' : '📄'}</span>
-        <span>${pendingFile.name}</span>
+        <span class="icon">${esPdf ? '📄' : '🖼️'}</span>
+        <span>${texto}</span>
       </div>`;
     btnQuitar.style.display = 'block';
   } else {
@@ -297,7 +298,7 @@ function handleRadioAdjuntar(e){
     box.style.display = 'block';
     syncPendingPreview();
   } else {
-    pendingFile = null;
+    pendingFiles = [];
     box.style.display = 'none';
   }
 }
@@ -308,15 +309,35 @@ function handleFAdjuntarClick(){
 }
 
 function handleFAdjuntoInput(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  pendingFile = file;
+  const files = [...e.target.files];
+  if(!files.length) return;
+
+  const pdfs = files.filter(f => f.type === 'application/pdf');
+  const imgs = files.filter(f => f.type.startsWith('image/'));
+
+  if(pdfs.length > 1){
+    alert('Solo un PDF a la vez.');
+    e.target.value = '';
+    return;
+  }
+  if(pdfs.length === 1 && imgs.length > 0){
+    alert('No mezcles PDF con fotos.');
+    e.target.value = '';
+    return;
+  }
+  if(imgs.length > 3){
+    alert('Máximo 3 fotos.');
+    e.target.value = '';
+    return;
+  }
+
+  pendingFiles = files;
   syncPendingPreview();
   e.target.value = '';
 }
 
 function handleFQuitarAdjunto(){
-  pendingFile = null;
+  pendingFiles = [];
   syncPendingPreview();
 }
 
@@ -333,11 +354,14 @@ function clearForm(){
   document.getElementById('fRutComprador').value='';
   const fNotas = document.getElementById('fNotas');
   if(fNotas) fNotas.value = '';
+  pendingFiles = [];
   clearRadioAdjuntar();
   const box = document.getElementById('fAdjuntoBox');
   if(box) box.style.display = 'none';
-  const prev = document.getElementById('fAdjuntoPreview');
-  if(prev) prev.innerHTML = '';
+  const pendingPreview = document.getElementById('pendingPreview');
+  if(pendingPreview) pendingPreview.style.display = 'none';
+  const ocrStatus = document.getElementById('ocrStatus');
+  if(ocrStatus) ocrStatus.textContent = '';
   clearErrors('formErrors', ['wLocal','wFecha','wDetalle','wTotal']);
 }
 
@@ -352,7 +376,7 @@ async function handleSave(){
     box.textContent = 'Elegí si querés adjuntar un archivo (Sí o No).';
     return;
   }
-  if(adjuntar === 'si' && !pendingFile){
+  if(adjuntar === 'si' && !pendingFiles.length){
     box.style.display = 'block';
     box.textContent = 'Elegiste adjuntar un archivo, pero no seleccionaste ninguno.';
     return;
@@ -376,7 +400,6 @@ async function handleSave(){
     notas: notasRaw || null,
   };
 
-  // Verificar duplicados (solo si no fue aprobado ya)
   if(!guardarDuplicadoAprobado){
     const dup = buscarDuplicado(rec);
     if(dup){
@@ -388,26 +411,36 @@ async function handleSave(){
   guardarDuplicadoAprobado = false;
 
   if(adjuntar === 'no'){
-    pendingFile = null;
+    pendingFiles = [];
   }
 
   try{
     const created = await apiCreate(rec);
-    if(pendingFile && created && created.id){
+
+    if(pendingFiles.length && created && created.id){
       try{
-        await uploadAttachment(created.id, pendingFile);
+        let archivoSubir;
+        const hayPdf = pendingFiles.length === 1 && pendingFiles[0].type === 'application/pdf';
+
+        if(hayPdf){
+          archivoSubir = pendingFiles[0];
+        } else {
+          const nombre = construirNombrePdf();
+          archivoSubir = await combinarFotosEnPdf(pendingFiles, nombre);
+        }
+
+        await uploadAttachment(created.id, archivoSubir);
       }catch(err){
         console.error('No se pudo adjuntar el archivo:', err);
         alert('El registro se guardó, pero el adjunto falló: ' + err.message);
       }
     }
-    pendingFile = null;
-    const prev = document.getElementById('pendingPreview');
-    if(prev) prev.style.display = 'none';
+
+    pendingFiles = [];
+    const pendingPreview = document.getElementById('pendingPreview');
+    if(pendingPreview) pendingPreview.style.display = 'none';
     await refreshRecords();
     clearForm();
-    const ocrStatus = document.getElementById('ocrStatus');
-    if(ocrStatus) ocrStatus.textContent = '';
   }catch(e){
     alert('No se pudo guardar: ' + e.message);
   }
@@ -466,7 +499,7 @@ function mostrarModalDuplicado(dup){
   };
 }
 
-// ---------- Duplicar registro (a formulario) ----------
+// ---------- Duplicar registro ----------
 function duplicarRegistro(r){
   if(!canEdit() || !r) return;
   showTab('manual');
@@ -481,9 +514,11 @@ function duplicarRegistro(r){
   document.getElementById('fRutEmisor').value    = r.rut_emisor || '';
   document.getElementById('fRutComprador').value = r.rut_comprador || '';
   document.getElementById('fNotas').value        = r.notas || '';
-  pendingFile = null;
+  pendingFiles = [];
   const box = document.getElementById('fAdjuntoBox');
   if(box) box.style.display = 'none';
+  const pendingPreview = document.getElementById('pendingPreview');
+  if(pendingPreview) pendingPreview.style.display = 'none';
   clearRadioAdjuntar();
   const prev = document.getElementById('fAdjuntoPreview');
   if(prev) prev.innerHTML = '';
