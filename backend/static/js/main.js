@@ -87,6 +87,14 @@
   document.getElementById('btnExportarPdfFotos').onclick = handleExportarPdfFotos;
   document.getElementById('btnQuitarFotos').onclick = handleQuitarFotos;
 
+  // Actualizar el nombre bajo la foto al escribir en los campos del formulario
+  ['fLocal','fDetalle','fFecha','fCondicion'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', ()=> renderPendingPreview());
+    el.addEventListener('change', ()=> renderPendingPreview());
+  });
+
   document.getElementById('btnExport').onclick = handleExportExcel;
   document.getElementById('btnExportResumen').onclick = handleExportResumen;
   document.getElementById('btnExportPdf').onclick = handleExportPdf;

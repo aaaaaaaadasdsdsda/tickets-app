@@ -58,7 +58,7 @@ function lastAmountInLine(line){
 function localFromFilename(filename){
   if(!filename) return '';
   let s = filename.replace(/\.[^.]+$/, '');
-  s = s.replace(/^(FC|BC|NC|Recibo|Resguardo|Factura|Nota\s*Cr[eé]dito|Ticket)\s+/i, '');
+  s = s.replace(/^(FC|BC|NC|Recibo|Resguardo|Factura|Nota\s*Cr[eé]dito|Ticket|WhatsApp\s*Image)\s*/i, '');
   s = s.replace(/\s*\d{1,2}[-/]\d{1,2}[-/]\d{2,4}.*$/, '');
   s = s.replace(/\s*\(\d+\)\s*$/, '');
   return s.trim();
@@ -71,7 +71,7 @@ function parseAndFill(text, filename = ''){
 
   // FECHA
   let fecha = '';
-  const mFecha = text.match(/Fecha(?:\s*de\s*emisi[oó]n)?\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i);
+  const mFecha = text.match(/Fecha(?:\s*de\s*emisi[oó]n|\s*Comprobante)?\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i);
   if(mFecha){
     const yr = mFecha[3].length === 2 ? '20' + mFecha[3] : mFecha[3];
     fecha = `${yr}-${mFecha[2].padStart(2,'0')}-${mFecha[1].padStart(2,'0')}`;
@@ -83,13 +83,19 @@ function parseAndFill(text, filename = ''){
     }
   }
 
-  // TOTAL
+  // TOTAL (prioriza "Monto Total", luego "TOTAL A PAGAR", luego cualquier "Total")
   let total = null;
   const mTotal = oneLine.match(/Monto\s*Total\s*:?\s*([\d.]+,\d{2,3})/i);
   if(mTotal) total = parseUyNumber(mTotal[1]);
+
+  if(total == null){
+    const mPagar = oneLine.match(/TOTAL\s*A\s*PAGAR\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
+    if(mPagar) total = parseUyNumber(mPagar[1]);
+  }
+
   if(total == null){
     for(const line of lines){
-      if(/\btotal\b/i.test(line) && !/subtotal|descripci[oó]n|cantidad|p\.?\s*unitario|% dto/i.test(line)){
+      if(/\btotal\b/i.test(line) && !/subtotal|descripci[oó]n|cantidad|p\.?\s*unitario|% dto|art[ií]culos/i.test(line)){
         const n = lastAmountInLine(line);
         if(n != null) total = n;
       }
@@ -118,7 +124,7 @@ function parseAndFill(text, filename = ''){
     if(est > 0 && est < total) iva = Math.round(est * 100) / 100;
   }
 
-  // Local
+  // Local (nombre del emisor)
   let local = localFromFilename(filename);
   if(!local){
     const HEADER_WORDS = /^(ruc|fecha|moneda|tipo\s|cambio|descripci[oó]n|producto|servicio|cantidad|cant\.?|p\.?\s*unit|precio|importe|total|subtotal|neto|iva|monto|descuento|recargo|adenda|referencia|serie|n[º°]|c[oó]digo|constancia|cae|res\.|original|cr[eé]dito|contado|efactura|nota\s*de\s*cr[eé]dito|recibo|resguardo|cobranza|tot\.?|gravado|exento|min\.?|otros|productor|esta|si\s|el\s|la\s|los\s|las\s|av\s|direcci[oó]n)/i;
@@ -187,6 +193,9 @@ function parseAndFill(text, filename = ''){
 
   const fNotas = document.getElementById('fNotas');
   if(fNotas) fNotas.value = '';
+
+  // Refrescar el nombre bajo la foto con los nuevos datos
+  if(typeof renderPendingPreview === 'function') renderPendingPreview();
 }
 
 // ---------- Utilidades para combinar fotos en PDF ----------
@@ -241,14 +250,19 @@ function sanitizeFilename(name){
     .replace(/[\\/:*?"<>|]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .substring(0, 60);
+    .substring(0, 80);
 }
 
-// Nombre del PDF: prefijo (BC/FC) + Local + Fecha (DD-MM-YYYY)
-function construirNombrePdf(){
-  const local = document.getElementById('fLocal')?.value.trim() || 'ticket';
+// ---------- Construir nombre desde los campos del formulario ----------
+// Formato: [BC|FC] Motivo Detalle DD-MM-YYYY
+function nombreArchivoDesdeFormulario(){
+  const local = document.getElementById('fLocal')?.value.trim() || '';
+  const detalle = document.getElementById('fDetalle')?.value.trim() || '';
   const fechaRaw = document.getElementById('fFecha')?.value || '';
   const condicion = document.getElementById('fCondicion')?.value || '';
+
+  // Necesitamos al menos Local y Fecha
+  if(!local || !fechaRaw) return '';
 
   // Prefijo según condición de pago
   let prefijo = '';
@@ -256,16 +270,28 @@ function construirNombrePdf(){
   else if(condicion === 'credito')  prefijo = 'FC';
 
   // Formatear fecha como DD-MM-YYYY
-  let fechaFmt = 'sin-fecha';
-  if(fechaRaw){
-    const partes = fechaRaw.split('-');
-    if(partes.length === 3 && partes[0] && partes[1] && partes[2]){
-      fechaFmt = `${partes[2]}-${partes[1]}-${partes[0]}`;
-    }
+  let fechaFmt = '';
+  const partes = fechaRaw.split('-');
+  if(partes.length === 3 && partes[0] && partes[1] && partes[2]){
+    fechaFmt = `${partes[2]}-${partes[1]}-${partes[0]}`;
+  } else {
+    fechaFmt = fechaRaw;
   }
 
-  const localLimpio = sanitizeFilename(local);
-  const base = [prefijo, localLimpio, fechaFmt].filter(Boolean).join(' ');
+  const localLimpio   = sanitizeFilename(local);
+  const detalleLimpio = sanitizeFilename(detalle);
+
+  return [prefijo, localLimpio, detalleLimpio, fechaFmt].filter(Boolean).join(' ');
+}
+
+function construirNombrePdf(){
+  const nombreBase = nombreArchivoDesdeFormulario();
+  if(nombreBase) return `${nombreBase}.pdf`;
+
+  // Fallback si faltan campos
+  const local = document.getElementById('fLocal')?.value.trim() || 'ticket';
+  const fechaRaw = document.getElementById('fFecha')?.value || 'sin-fecha';
+  const base = sanitizeFilename(`${local}-${fechaRaw}`);
   return `${base || 'ticket'}.pdf`;
 }
 
@@ -287,7 +313,9 @@ function renderPendingPreview(){
   preview.style.display = 'block';
   const hayImagenes = pendingFiles.some(f => f.type.startsWith('image/'));
   const cantImagenes = pendingFiles.filter(f => f.type.startsWith('image/')).length;
+  const hayPdf = pendingFiles.length === 1 && pendingFiles[0].type === 'application/pdf';
 
+  // Miniaturas
   for(const file of pendingFiles){
     if(file.type.startsWith('image/')){
       const img = document.createElement('img');
@@ -309,12 +337,29 @@ function renderPendingPreview(){
     }
   }
 
-  if(pendingFiles.length === 1){
+  // Nombre a mostrar
+  if(hayPdf){
+    // PDF: mostrar el nombre original
     name.textContent = pendingFiles[0].name;
   } else {
-    name.textContent = `${pendingFiles.length} fotos cargadas`;
+    // Fotos: intentar armar el nombre desde el formulario
+    const nombreForm = nombreArchivoDesdeFormulario();
+    if(nombreForm){
+      name.textContent = nombreForm;
+      name.style.fontWeight = '600';
+      name.style.color = 'var(--ink)';
+    } else if(pendingFiles.length === 1){
+      name.textContent = pendingFiles[0].name;
+      name.style.fontWeight = '';
+      name.style.color = '';
+    } else {
+      name.textContent = `${pendingFiles.length} fotos cargadas`;
+      name.style.fontWeight = '';
+      name.style.color = '';
+    }
   }
 
+  // Botón exportar PDF (solo para fotos)
   if(hayImagenes){
     btnPdf.style.display = 'block';
     btnPdf.textContent = cantImagenes > 1
