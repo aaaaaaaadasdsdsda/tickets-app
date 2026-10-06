@@ -1,5 +1,5 @@
 // ==========================================================
-//  ocr.js — PDF.js + Tesseract + parseo + combinar fotos
+//  ocr.js — PDF.js + Tesseract + preprocesamiento + parseo
 // ==========================================================
 
 // ---------- PDF.js: extraer texto de un PDF ----------
@@ -32,7 +32,74 @@ async function extractPdfText(file){
   return texto;
 }
 
-// ---------- Parseo de números en formato uruguayo ----------
+// ==========================================================
+//  PREPROCESAMIENTO DE IMAGEN (mejora el OCR de fotos)
+// ==========================================================
+async function preprocesarImagen(file){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Redimensionar si es muy grande (mejora velocidad sin perder legibilidad)
+      const MAX_W = 2000;
+      let w = img.width, h = img.height;
+      if(w > MAX_W){
+        h = Math.round(h * (MAX_W / w));
+        w = MAX_W;
+      }
+      canvas.width = w;
+      canvas.height = h;
+
+      // Fondo blanco puro (por si la foto tiene transparencia)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+
+      // Paso 1: escala de grises + contraste
+      let suma = 0;
+      const grises = new Uint8Array(data.length / 4);
+      for(let i = 0, j = 0; i < data.length; i += 4, j++){
+        const r = data[i], g = data[i+1], b = data[i+2];
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Aumentar contraste
+        gray = ((gray - 128) * 1.5) + 128;
+        gray = Math.max(0, Math.min(255, gray));
+        grises[j] = gray;
+        suma += gray;
+      }
+
+      // Paso 2: binarización adaptativa simple
+      // El umbral se calcula como la media menos un margen
+      const media = suma / grises.length;
+      // Si la imagen es muy oscura, ajustamos
+      let umbral = media * 0.85;
+      if(umbral < 100) umbral = 110;
+      if(umbral > 200) umbral = 180;
+
+      for(let i = 0, j = 0; i < data.length; i += 4, j++){
+        const bin = grises[j] > umbral ? 255 : 0;
+        data[i]   = bin;
+        data[i+1] = bin;
+        data[i+2] = bin;
+        data[i+3] = 255;
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas);
+    };
+    img.onerror = () => resolve(null);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ==========================================================
+//  PARSEO DE NÚMEROS EN FORMATO URUGUAYO
+// ==========================================================
 function parseUyNumber(raw){
   if(raw == null) return null;
   raw = String(raw).trim().replace(/\s/g, '');
@@ -61,51 +128,85 @@ function localFromFilename(filename){
   s = s.replace(/^(FC|BC|NC|Recibo|Resguardo|Factura|Nota\s*Cr[eé]dito|Ticket|WhatsApp\s*Image)\s*/i, '');
   s = s.replace(/\s*\d{1,2}[-/]\d{1,2}[-/]\d{2,4}.*$/, '');
   s = s.replace(/\s*\(\d+\)\s*$/, '');
+  s = s.replace(/\s+(at\s+)?\d{1,2}[.:]\d{2}([.:]\d{2})?\s*$/i, '');
   return s.trim();
 }
 
-// ---------- Parseo principal ----------
+// ==========================================================
+//  PARSEO PRINCIPAL (mejorado)
+// ==========================================================
 function parseAndFill(text, filename = ''){
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const oneLine = lines.join(' ');
 
-  // FECHA
+  // ─────────── FECHA ───────────
   let fecha = '';
-  const mFecha = text.match(/Fecha(?:\s*de\s*emisi[oó]n|\s*Comprobante)?\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i);
-  if(mFecha){
-    const yr = mFecha[3].length === 2 ? '20' + mFecha[3] : mFecha[3];
-    fecha = `${yr}-${mFecha[2].padStart(2,'0')}-${mFecha[1].padStart(2,'0')}`;
-  } else {
-    const m2 = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-    if(m2){
-      const yr = m2[3].length === 2 ? '20' + m2[3] : m2[3];
-      fecha = `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  const fechaPatterns = [
+    /Fecha\s*(?:de\s*)?(?:emisi[oó]n|comprobante)?\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i,
+    /(?:emisi[oó]n|comprobante)\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i,
+    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/
+  ];
+  for(const pat of fechaPatterns){
+    const m = text.match(pat);
+    if(m){
+      const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+      fecha = `${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      break;
     }
   }
 
-  // TOTAL (prioriza "Monto Total", luego "TOTAL A PAGAR", luego cualquier "Total")
+  // ─────────── TOTAL ───────────
   let total = null;
-  const mTotal = oneLine.match(/Monto\s*Total\s*:?\s*([\d.]+,\d{2,3})/i);
-  if(mTotal) total = parseUyNumber(mTotal[1]);
 
+  // 1) "Monto Total:" (e-facturas DGI)
+  const mTotal1 = oneLine.match(/Monto\s*Total\s*:?\s*([\d.]+,\d{2,3})/i);
+  if(mTotal1) total = parseUyNumber(mTotal1[1]);
+
+  // 2) "TOTAL A PAGAR" (tickets minoristas)
   if(total == null){
-    const mPagar = oneLine.match(/TOTAL\s*A\s*PAGAR\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
-    if(mPagar) total = parseUyNumber(mPagar[1]);
+    const mTotal2 = oneLine.match(/TOTAL\s*A\s*PAGAR\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
+    if(mTotal2) total = parseUyNumber(mTotal2[1]);
   }
 
+  // 3) "TOTAL DE COMPRA" (Macromercado)
+  if(total == null){
+    const mTotal3 = oneLine.match(/TOTAL\s*DE\s*COMPRA\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
+    if(mTotal3) total = parseUyNumber(mTotal3[1]);
+  }
+
+  // 4) "TOTAL OPERACION" (Encaltex)
+  if(total == null){
+    const mTotal4 = oneLine.match(/TOTAL\s*OPERACI[OÓ]N\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
+    if(mTotal4) total = parseUyNumber(mTotal4[1]);
+  }
+
+  // 5) "TOTAL:" genérico
+  if(total == null){
+    const mTotal5 = oneLine.match(/\bTOTAL\s*:?\s*\$?\s*([\d.]+,\d{2,3})/i);
+    if(mTotal5) total = parseUyNumber(mTotal5[1]);
+  }
+
+  // 6) Fallback: cualquier línea con "Total" que no sea subtotal
   if(total == null){
     for(const line of lines){
-      if(/\btotal\b/i.test(line) && !/subtotal|descripci[oó]n|cantidad|p\.?\s*unitario|% dto|art[ií]culos/i.test(line)){
+      if(/\btotal\b/i.test(line) &&
+         !/subtotal|descripci[oó]n|cantidad|p\.?\s*unitario|% dto|art[ií]culos|entregado|devuelto/i.test(line)){
         const n = lastAmountInLine(line);
         if(n != null) total = n;
       }
     }
   }
 
-  // IVA
+  // ─────────── IVA ───────────
   let iva = null;
   const mIvaTot = oneLine.match(/Tot\.?\s*Iva\s*B[aá]sico\s*:?\s*([\d.]+,\d{2,3})/i);
   if(mIvaTot) iva = parseUyNumber(mIvaTot[1]);
+
+  if(iva == null){
+    const mIvaGuapa = oneLine.match(/\bIVA\s+(?:10|22|B[aá]sico|M[ií]nimo)\s*%?\s*:?\s*([\d.]+,\d{2,3})/i);
+    if(mIvaGuapa) iva = parseUyNumber(mIvaGuapa[1]);
+  }
+
   if(iva == null){
     for(const line of lines){
       if(/\biva\b/i.test(line) && !/^neto/i.test(line) && !/neto\s*iva/i.test(line)){
@@ -119,55 +220,104 @@ function parseAndFill(text, filename = ''){
   let gravado = null;
   const mGrav = oneLine.match(/Neto\s*Iva\s*B[aá]sico\s*:?\s*([\d.]+,\d{2,3})/i);
   if(mGrav) gravado = parseUyNumber(mGrav[1]);
+
   if(iva == null && total != null && gravado != null){
     const est = total - gravado;
     if(est > 0 && est < total) iva = Math.round(est * 100) / 100;
   }
 
-  // Local (nombre del emisor)
+  // ─────────── LOCAL (emisor) ───────────
   let local = localFromFilename(filename);
+
   if(!local){
-    const HEADER_WORDS = /^(ruc|fecha|moneda|tipo\s|cambio|descripci[oó]n|producto|servicio|cantidad|cant\.?|p\.?\s*unit|precio|importe|total|subtotal|neto|iva|monto|descuento|recargo|adenda|referencia|serie|n[º°]|c[oó]digo|constancia|cae|res\.|original|cr[eé]dito|contado|efactura|nota\s*de\s*cr[eé]dito|recibo|resguardo|cobranza|tot\.?|gravado|exento|min\.?|otros|productor|esta|si\s|el\s|la\s|los\s|las\s|av\s|direcci[oó]n)/i;
+    // Ciudades / palabras que NO son local
+    const CIUDADES = /^(montevideo|salto|paysand[uú]|maldonado|punta\s*del\s*este|colonia|rivera|tacuaremb[oó]|artigas|melo|mercedes|fray\s*bentos|duranzo|canelones|las\s*piedras|san\s*jos[eé]|trinidad|florida|minas|rocha|treinta\s*y\s*tres)$/i;
+
+    const HEADER_WORDS = /^(ruc|rut|fecha|hora|moneda|tipo\s|cambio|descripci[oó]n|producto|servicio|cantidad|cant\.?|p\.?\s*unit|precio|importe|total|subtotal|neto|iva|monto|descuento|recargo|adenda|referencia|serie|n[º°]|c[oó]digo|constancia|cae|res\.?|original|cr[eé]dito|contado|e-?factura|nota\s*de\s*cr[eé]dito|recibo|resguardo|cobranza|tot\.?|gravado|exento|min\.?|otros|productor|cliente|señor|sr\.?|sra\.?|direcci[oó]n|tel[eé]fono|tel\.?|cel\.?|ventas|local|sucursal|documento|operaci[oó]n|pago|pagado|caja|cajero|boleta|ticket|comprobante|ciudad|pa[ií]s|departamento|banda|tarjeta|d[eé]bito|aut\.?|lote|apagar|entregado|devuelto|art[ií]culos|detalle)/i;
+
     const BUYER_HINTS = /machiavello|curbelo|ver[oó]nica|leticia|zelmar|michelini|151025410017/i;
 
-    for(const line of lines){
+    let mejorCandidato = '';
+    let mejorPuntaje = 0;
+
+    for(const line of lines.slice(0, 15)){
       const t = line.trim();
-      if(t.length < 4 || t.length > 60) continue;
-      if(/^[<>=&]/.test(t)) continue;
+      if(t.length < 4 || t.length > 70) continue;
+      if(/^[<>=&@#]/.test(t)) continue;
       if(HEADER_WORDS.test(t)) continue;
       if(BUYER_HINTS.test(t)) continue;
       if(/^\d/.test(t)) continue;
       if(/\b\d{11,12}\b/.test(t)) continue;
+      if(CIUDADES.test(t)) continue;
+      if(/^\W*$/.test(t)) continue;
+
       const digitCount = (t.match(/\d/g) || []).length;
-      if(digitCount > t.length * 0.3) continue;
+      if(digitCount > t.length * 0.35) continue;
+
       const amountCount = (t.match(/\d+[.,]\d{2,3}/g) || []).length;
       if(amountCount >= 2) continue;
-      local = t;
-      break;
+
+      // Puntaje según indicios
+      let puntaje = 0;
+      if(/S\.?\s*A\.?|S\.?\s*R\.?\s*L\.?|LTDA|SAS|S\.A\.S/i.test(t)) puntaje += 10;
+      if(/[A-ZÁÉÍÓÚÑ]{4,}/.test(t)) puntaje += 3;      // mayúsculas sostenidas
+      if(t.length >= 8 && t.length <= 45) puntaje += 2; // largo razonable
+      if(/^[A-ZÁÉÍÓÚÑ]/.test(t)) puntaje += 1;          // arranca con mayúscula
+
+      if(puntaje > mejorPuntaje){
+        mejorPuntaje = puntaje;
+        mejorCandidato = t;
+      }
+    }
+
+    if(mejorCandidato){
+      local = mejorCandidato
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
   }
 
-  // Condición
+  // ─────────── CONDICIÓN ───────────
   let condicion = '';
-  const cabecera = lines.slice(0, 8).join(' ');
+  const cabecera = lines.slice(0, 15).join(' ');
+
+  // Prioridad: buscar en las primeras líneas
   if(/\bcontado\b/i.test(cabecera)) condicion = 'contado';
   else if(/\bcr[eé]dito\b/i.test(cabecera)) condicion = 'credito';
 
-  // RUTs
-  let rutComprador = '';
-  const mRutComp = text.match(/RUC\s*COMPRADOR\s*:?\s*(\d{11,12})/i);
-  if(mRutComp) rutComprador = mRutComp[1];
-
-  let rutEmisor = '';
-  for(const line of lines.slice(0, 5)){
-    const m = line.match(/\b(\d{11,12})\b/);
-    if(m && m[1] !== rutComprador){
-      rutEmisor = m[1];
-      break;
+  // Verificar con "Forma de pago" si no se detectó
+  if(!condicion){
+    for(const line of lines){
+      if(/forma\s*de\s*pago/i.test(line)){
+        if(/contado/i.test(line)) { condicion = 'contado'; break; }
+        if(/cr[eé]dito/i.test(line)) { condicion = 'credito'; break; }
+      }
     }
   }
 
-  // Moneda
+  // ─────────── RUTs ───────────
+  let rutComprador = '';
+  // Formatos: "RUC COMPRADOR 1234", "RUC COMPRADOR: 1234", "RUT COMPRADOR"
+  const mRutComp = text.match(/(?:RUC|RUT)\s*COMPRADOR\s*:?\s*(\d{11,12})/i);
+  if(mRutComp) rutComprador = mRutComp[1];
+
+  let rutEmisor = '';
+  // 1) "RUT 1234" o "RUC 1234" o "RUT: 1234"
+  const mRutEm1 = text.match(/(?:RUC|RUT)\s*:?\s*(\d{11,12})/i);
+  if(mRutEm1 && mRutEm1[1] !== rutComprador) rutEmisor = mRutEm1[1];
+
+  // 2) Cualquier número de 11-12 dígitos en las primeras líneas
+  if(!rutEmisor){
+    for(const line of lines.slice(0, 8)){
+      const m = line.match(/\b(\d{11,12})\b/);
+      if(m && m[1] !== rutComprador){
+        rutEmisor = m[1];
+        break;
+      }
+    }
+  }
+
+  // ─────────── MONEDA ───────────
   let moneda = 'UYU';
   const mMoneda = text.match(/Moneda\s*:?\s*(UYU|USD|EUR|ARS|BRL)/i);
   if(mMoneda){
@@ -176,7 +326,7 @@ function parseAndFill(text, filename = ''){
     else moneda = 'UYU';
   }
 
-  // Rellenar formulario
+  // ─────────── Rellenar formulario ───────────
   document.getElementById('fLocal').value     = local;
   document.getElementById('fFecha').value     = fecha;
   document.getElementById('fTotal').value     = total ?? '';
@@ -198,7 +348,9 @@ function parseAndFill(text, filename = ''){
   if(typeof renderPendingPreview === 'function') renderPendingPreview();
 }
 
-// ---------- Utilidades para combinar fotos en PDF ----------
+// ==========================================================
+//  UTILIDADES PARA COMBINAR FOTOS EN PDF
+// ==========================================================
 function fileToDataUrl(file){
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -261,15 +413,12 @@ function nombreArchivoDesdeFormulario(){
   const fechaRaw = document.getElementById('fFecha')?.value || '';
   const condicion = document.getElementById('fCondicion')?.value || '';
 
-  // Necesitamos al menos Local y Fecha
   if(!local || !fechaRaw) return '';
 
-  // Prefijo según condición de pago
   let prefijo = '';
   if(condicion === 'contado')       prefijo = 'BC';
   else if(condicion === 'credito')  prefijo = 'FC';
 
-  // Formatear fecha como DD-MM-YYYY
   let fechaFmt = '';
   const partes = fechaRaw.split('-');
   if(partes.length === 3 && partes[0] && partes[1] && partes[2]){
@@ -288,14 +437,15 @@ function construirNombrePdf(){
   const nombreBase = nombreArchivoDesdeFormulario();
   if(nombreBase) return `${nombreBase}.pdf`;
 
-  // Fallback si faltan campos
   const local = document.getElementById('fLocal')?.value.trim() || 'ticket';
   const fechaRaw = document.getElementById('fFecha')?.value || 'sin-fecha';
   const base = sanitizeFilename(`${local}-${fechaRaw}`);
   return `${base || 'ticket'}.pdf`;
 }
 
-// ---------- Preview de fotos/PDF pendientes ----------
+// ==========================================================
+//  PREVIEW DE FOTOS/PDF PENDIENTES
+// ==========================================================
 function renderPendingPreview(){
   const grid = document.getElementById('pendingImagesGrid');
   const preview = document.getElementById('pendingPreview');
@@ -315,7 +465,6 @@ function renderPendingPreview(){
   const cantImagenes = pendingFiles.filter(f => f.type.startsWith('image/')).length;
   const hayPdf = pendingFiles.length === 1 && pendingFiles[0].type === 'application/pdf';
 
-  // Miniaturas
   for(const file of pendingFiles){
     if(file.type.startsWith('image/')){
       const img = document.createElement('img');
@@ -337,12 +486,11 @@ function renderPendingPreview(){
     }
   }
 
-  // Nombre a mostrar
   if(hayPdf){
-    // PDF: mostrar el nombre original
     name.textContent = pendingFiles[0].name;
+    name.style.fontWeight = '';
+    name.style.color = '';
   } else {
-    // Fotos: intentar armar el nombre desde el formulario
     const nombreForm = nombreArchivoDesdeFormulario();
     if(nombreForm){
       name.textContent = nombreForm;
@@ -359,7 +507,6 @@ function renderPendingPreview(){
     }
   }
 
-  // Botón exportar PDF (solo para fotos)
   if(hayImagenes){
     btnPdf.style.display = 'block';
     btnPdf.textContent = cantImagenes > 1
@@ -399,7 +546,9 @@ function handleQuitarFotos(){
   if(ocrStatus) ocrStatus.textContent = '';
 }
 
-// ---------- Handler de subida ----------
+// ==========================================================
+//  HANDLER DE SUBIDA (con preprocesamiento)
+// ==========================================================
 async function handleFileUpload(){
   const fileInput = document.getElementById('fileInput');
   const dropzone  = document.getElementById('dropzone');
@@ -436,16 +585,23 @@ async function handleFileUpload(){
 
   try{
     let text = '';
+
     if(esPdf){
       ocrStatus.textContent = 'Extrayendo texto del PDF...';
       text = await extractPdfText(files[0]);
       parseAndFill(text, files[0].name);
     } else {
+      // Preprocesar la primera foto (donde debería estar el total)
+      ocrStatus.textContent = 'Mejorando imagen...';
+      const canvasProcesado = await preprocesarImagen(files[0]);
+
       ocrStatus.textContent = 'Leyendo la primera foto...';
-      const { data:{text: ocrText} } = await Tesseract.recognize(files[0], 'spa');
+      const input = canvasProcesado || files[0];
+      const { data:{text: ocrText} } = await Tesseract.recognize(input, 'spa');
       text = ocrText;
       parseAndFill(text, files[0].name);
     }
+
     ocrStatus.textContent = 'Listo. Revisá y completá lo que falte antes de guardar.';
   }catch(e){
     console.error(e);
